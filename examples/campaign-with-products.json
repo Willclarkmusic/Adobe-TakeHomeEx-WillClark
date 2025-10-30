@@ -1,0 +1,32 @@
+{
+  "name": "Fall 2025 Tech Accessories Launch",
+  "campaign_message": "Introducing our new line of premium tech accessories for the modern professional",
+  "call_to_action": "Upgrade Your Tech Game Today!",
+  "target_region": "Global",
+  "target_audience": "Tech-savvy professionals aged 25-45",
+  "brand_images": "[\"https://picsum.photos/seed/tech1/400/300\", \"https://picsum.photos/seed/tech2/400/300\", \"https://picsum.photos/seed/tech3/400/300\"]",
+  "start_date": "2025-09-01",
+  "duration": 60,
+  "products": [
+    {
+      "name": "Wireless Charging Pad",
+      "description": "Fast wireless charging pad compatible with all Qi-enabled devices. Sleek aluminum design with LED indicator.",
+      "image_path": "https://picsum.photos/seed/charger/400/400"
+    },
+    {
+      "name": "Premium Laptop Sleeve",
+      "description": "Handcrafted leather laptop sleeve with soft interior lining. Fits 13-15 inch laptops perfectly.",
+      "image_path": "https://picsum.photos/seed/sleeve/400/400"
+    },
+    {
+      "name": "Noise-Canceling Earbuds",
+      "description": "Advanced noise-canceling technology with 24-hour battery life. Crystal-clear sound quality for calls and music.",
+      "image_path": "https://picsum.photos/seed/earbuds/400/400"
+    },
+    {
+      "name": "Ergonomic Mouse Pad",
+      "description": "Memory foam wrist support with smooth tracking surface. Reduces wrist strain during extended use.",
+      "image_path": "https://picsum.photos/seed/mousepad/400/400"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Stainless Steel Water Bottle",
+    "description": "24oz insulated stainless steel bottle keeps drinks cold for 24 hours",
+    "image_path": "https://picsum.photos/300/300?random=10"
+  },
+  {
+    "name": "Glass Water Bottle",
+    "description": "18oz eco-friendly glass bottle with protective silicone sleeve",
+    "image_path": "https://picsum.photos/300/300?random=11"
+  },
+  {
+    "name": "Collapsible Water Bottle",
+    "description": "16oz collapsible silicone bottle perfect for travel",
+    "image_path": "https://picsum.photos/300/300?random=12"
+  }
+]
