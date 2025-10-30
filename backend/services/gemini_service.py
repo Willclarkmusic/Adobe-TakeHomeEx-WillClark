@@ -1,5 +1,5 @@
 """
-Gemini AI Service for generating post copy.
+Gemini AI Service for generating post copy and images.
 
 Uses Google's Gemini API to generate professional social media post content
 based on campaign and product information.
@@ -7,12 +7,19 @@ based on campaign and product information.
 import os
 import json
 import re
+import logging
 from typing import Dict, Optional
 from dotenv import load_dotenv
 import google.generativeai as genai
+from PIL import Image
+import io
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class GeminiService:
@@ -32,7 +39,12 @@ class GeminiService:
             )
 
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        # Use gemini-2.5-flash - latest model with best price-performance
+        # Improved reasoning and quality vs 1.5 Flash at similar speed/cost
+        self.text_model = genai.GenerativeModel('gemini-2.5-flash')
+
+        # Use gemini-2.5-flash-image for image generation and editing (img2img)
+        self.image_model = genai.GenerativeModel('gemini-2.5-flash-image')
 
     async def generate_post_copy(
         self,
@@ -74,7 +86,7 @@ class GeminiService:
 
         try:
             # Generate content using Gemini
-            response = self.model.generate_content(system_prompt)
+            response = self.text_model.generate_content(system_prompt)
 
             # Parse the response
             result = self.parse_gemini_response(response.text)
@@ -136,8 +148,15 @@ IMPORTANT: Return ONLY a valid JSON object with no additional text or explanatio
 {{
   "headline": "Your headline here",
   "body_text": "Your body text here",
-  "caption": "Your caption here"
-}}"""
+  "caption": "Your caption here",
+  "text_color": "#RRGGBB"
+}}
+
+The "text_color" field should be a hex color code for the headline background that:
+- Complements the campaign/product vibe
+- Provides high contrast for white text
+- Is bold, vibrant, and eye-catching for social media
+- Examples: "#FF4081" (hot pink), "#00BCD4" (cyan), "#FF6F00" (orange), "#8E24AA" (purple)"""
 
         return prompt
 
@@ -165,7 +184,7 @@ IMPORTANT: Return ONLY a valid JSON object with no additional text or explanatio
                 data = json.loads(response_text)
 
             # Validate required fields
-            required_fields = ["headline", "body_text", "caption"]
+            required_fields = ["headline", "body_text", "caption", "text_color"]
             missing_fields = [field for field in required_fields if field not in data]
 
             if missing_fields:
@@ -174,10 +193,102 @@ IMPORTANT: Return ONLY a valid JSON object with no additional text or explanatio
             return {
                 "headline": data["headline"].strip(),
                 "body_text": data["body_text"].strip(),
-                "caption": data["caption"].strip()
+                "caption": data["caption"].strip(),
+                "text_color": data["text_color"].strip()
             }
 
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse JSON response: {str(e)}\nResponse: {response_text}")
         except Exception as e:
             raise ValueError(f"Failed to parse Gemini response: {str(e)}")
+
+    async def generate_product_image(
+        self,
+        product_image: Image.Image,
+        campaign_message: str,
+        headline: str,
+        user_prompt: str,
+        aspect_ratio: str = "1:1"
+    ) -> Image.Image:
+        """
+        Generate a stylized product image using Gemini 2.5 Flash Image (img2img).
+
+        Args:
+            product_image: PIL Image of the product
+            campaign_message: Campaign message for context
+            headline: Generated headline to inform the image style
+            user_prompt: User's custom generation prompt
+            aspect_ratio: Desired aspect ratio ("1:1", "16:9", or "9:16")
+
+        Returns:
+            PIL Image of the generated/edited product image
+
+        Raises:
+            Exception: If image generation fails
+        """
+        logger.info(f"         🎨 Generating image with Gemini 2.5 Flash Image...")
+        logger.info(f"         📐 Aspect ratio: {aspect_ratio}")
+
+        # Build image generation prompt
+        image_prompt = self._build_image_prompt(
+            campaign_message=campaign_message,
+            headline=headline,
+            user_prompt=user_prompt
+        )
+        logger.info(f"         📝 Image prompt: {image_prompt[:100]}...")
+
+        try:
+            # Generate image using Gemini with img2img
+            response = self.image_model.generate_content(
+                [image_prompt, product_image]
+            )
+
+            # Extract generated image from response
+            if response.parts:
+                for part in response.parts:
+                    # Check if this part contains image data
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        # Convert inline_data to PIL Image
+                        image_data = part.inline_data.data
+                        generated_image = Image.open(io.BytesIO(image_data))
+                        logger.info(f"         ✅ Image generated successfully! Size: {generated_image.size}")
+                        return generated_image
+
+            # If no image found in parts, try alternative access
+            if hasattr(response, 'image'):
+                logger.info(f"         ✅ Image generated successfully (via response.image)")
+                return response.image
+
+            raise ValueError("No image data found in Gemini response")
+
+        except Exception as e:
+            logger.error(f"         ❌ Image generation failed: {str(e)}")
+            raise Exception(f"Failed to generate product image: {str(e)}")
+
+    def _build_image_prompt(
+        self,
+        campaign_message: str,
+        headline: str,
+        user_prompt: str
+    ) -> str:
+        """
+        Build a detailed prompt for image generation that maintains product integrity
+        while adding campaign-appropriate styling.
+        """
+        prompt = f"""Transform this product image for a social media marketing campaign while keeping the product clearly recognizable.
+
+CAMPAIGN CONTEXT:
+- Campaign Message: {campaign_message}
+- Post Headline: {headline}
+- Creative Direction: {user_prompt}
+
+REQUIREMENTS:
+- Keep the product as the main focus and clearly identifiable
+- Add campaign-appropriate atmosphere, lighting, and styling
+- Enhance visual appeal for social media (vibrant, eye-catching)
+- Make it feel professional and on-brand
+- The style should complement the headline: "{headline}"
+
+Transform the image to match the campaign vibe while maintaining product clarity."""
+
+        return prompt

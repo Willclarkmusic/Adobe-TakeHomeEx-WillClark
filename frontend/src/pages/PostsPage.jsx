@@ -56,6 +56,11 @@ function PostsPage({ selectedCampaign }) {
     closeGenerateModal();
   };
 
+  const handleEditPost = (post) => {
+    // TODO: Implement edit functionality
+    alert("Edit functionality coming soon! For now, you can delete and regenerate.");
+  };
+
   const handleDeletePost = async (postId) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this post? This action cannot be undone."
@@ -102,9 +107,14 @@ function PostsPage({ selectedCampaign }) {
     }
 
     return (
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} onDelete={handleDeletePost} />
+          <PostCard
+            key={post.id}
+            post={post}
+            onEdit={handleEditPost}
+            onDelete={handleDeletePost}
+          />
         ))}
       </div>
     );

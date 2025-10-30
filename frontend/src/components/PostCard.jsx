@@ -1,65 +1,76 @@
-import React from "react";
+import React, { useState } from "react";
 
 /**
- * PostCard Component - Displays a generated post with images and text content
+ * PostCard Component - Compact Instagram-style post card
+ * Similar to ProductCard layout with image preview and text below
  */
-function PostCard({ post, onDelete }) {
-  const renderImageGallery = () => {
-    const images = [];
+function PostCard({ post, onEdit, onDelete }) {
+  // Track which aspect ratio is being previewed
+  const [selectedRatio, setSelectedRatio] = useState(getFirstAvailableRatio());
 
-    if (post.image_1_1) {
-      images.push({ path: post.image_1_1, ratio: "1:1 (Square)", label: "1:1" });
-    }
-    if (post.image_16_9) {
-      images.push({ path: post.image_16_9, ratio: "16:9 (Landscape)", label: "16:9" });
-    }
-    if (post.image_9_16) {
-      images.push({ path: post.image_9_16, ratio: "9:16 (Vertical)", label: "9:16" });
-    }
+  function getFirstAvailableRatio() {
+    if (post.image_1_1) return "1:1";
+    if (post.image_16_9) return "16:9";
+    if (post.image_9_16) return "9:16";
+    return null;
+  }
 
-    if (images.length === 0) {
-      return (
-        <p className="text-gray-500 dark:text-gray-400 font-mono text-sm">
-          No images generated
-        </p>
-      );
+  const renderPostImage = () => {
+    const imagePath =
+      selectedRatio === "1:1"
+        ? post.image_1_1
+        : selectedRatio === "16:9"
+        ? post.image_16_9
+        : post.image_9_16;
+
+    if (!imagePath) {
+      return renderPlaceholderImage();
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {images.map((img, index) => (
-          <div key={index} className="space-y-2">
-            <div className="border-4 border-black dark:border-white overflow-hidden bg-gray-100 dark:bg-gray-800">
-              <img
-                src={`/static/${img.path}`}
-                alt={`${img.ratio} aspect ratio`}
-                className="w-full h-auto object-contain"
-                onError={(e) => {
-                  console.error("Failed to load image:", img.path);
-                  e.target.style.display = "none";
-                  e.target.nextSibling.style.display = "flex";
-                }}
-              />
-              <div
-                style={{ display: "none" }}
-                className="w-full h-48 flex items-center justify-center text-red-500 font-mono text-xs p-2 text-center"
-              >
-                ❌ Failed to load
-                <br />
-                {img.path}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <span className="font-bold text-sm">{img.ratio}</span>
-              <a
-                href={`/static/${img.path}`}
-                download
-                className="text-sm underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-              >
-                Download
-              </a>
-            </div>
-          </div>
+      <img
+        src={`/static/${imagePath}`}
+        alt={post.headline}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          console.error("Failed to load image:", imagePath);
+          e.target.style.display = "none";
+          e.target.nextSibling.style.display = "flex";
+        }}
+      />
+    );
+  };
+
+  const renderPlaceholderImage = () => {
+    return (
+      <div className="w-full h-64 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+        <span className="text-6xl">🎨</span>
+      </div>
+    );
+  };
+
+  const renderAspectRatioSelector = () => {
+    const ratios = [];
+    if (post.image_1_1) ratios.push({ key: "1:1", label: "Square" });
+    if (post.image_16_9) ratios.push({ key: "16:9", label: "Landscape" });
+    if (post.image_9_16) ratios.push({ key: "9:16", label: "Story" });
+
+    if (ratios.length <= 1) return null;
+
+    return (
+      <div className="flex gap-1 mb-2">
+        {ratios.map((ratio) => (
+          <button
+            key={ratio.key}
+            onClick={() => setSelectedRatio(ratio.key)}
+            className={`px-2 py-1 text-xs font-bold uppercase border-2 border-black dark:border-white ${
+              selectedRatio === ratio.key
+                ? "bg-black dark:bg-white text-white dark:text-black"
+                : "bg-white dark:bg-black text-black dark:text-white"
+            }`}
+          >
+            {ratio.label}
+          </button>
         ))}
       </div>
     );
@@ -67,76 +78,67 @@ function PostCard({ post, onDelete }) {
 
   const renderTextContent = () => {
     return (
-      <div className="space-y-3 border-4 border-black dark:border-white p-4 bg-gray-50 dark:bg-gray-800">
-        <div>
-          <h4 className="text-sm font-bold uppercase text-gray-600 dark:text-gray-400">
-            Headline
-          </h4>
-          <p className="font-bold text-xl">{post.headline}</p>
-        </div>
-        <div>
-          <h4 className="text-sm font-bold uppercase text-gray-600 dark:text-gray-400">
-            Body Text
-          </h4>
-          <p className="font-mono text-sm">{post.body_text}</p>
-        </div>
-        <div>
-          <h4 className="text-sm font-bold uppercase text-gray-600 dark:text-gray-400">
-            Caption
-          </h4>
-          <p className="font-mono text-sm italic">{post.caption}</p>
-        </div>
-        {post.generation_prompt && (
-          <div className="pt-3 border-t-2 border-gray-300 dark:border-gray-600">
-            <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-500">
-              Generation Prompt
-            </h4>
-            <p className="font-mono text-xs text-gray-600 dark:text-gray-400">
-              {post.generation_prompt}
-            </p>
-          </div>
-        )}
+      <div className="flex-1 px-3">
+        <h4 className="text-lg font-bold uppercase mb-1 ">{post.headline}</h4>
+        <p className="font-bold text-md">Post Body: </p>
+        <p className="font-mono text-xs text-gray-700 dark:text-gray-300 mb-2 ">
+          {post.body_text}
+        </p>
+        <p className="font-bold text-md">Caption: </p>
+        <p className="font-mono text-xs italic text-gray-600 dark:text-gray-400 ">
+          {post.caption}
+        </p>
       </div>
     );
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+  const renderActionButtons = () => {
+    return (
+      <div className="flex gap-2 mx-auto w-full px-3 pb-3">
+        <button
+          onClick={() => onEdit && onEdit(post)}
+          className="px-3 py-2 border-2 border-black dark:border-white bg-yellow-300 dark:bg-yellow-600 text-black font-bold uppercase text-xs hover:translate-x-0.5 hover:translate-y-0.5 transition-transform flex-1"
+        >
+          Edit
+        </button>
+        <a
+          href={`/static/${
+            post.image_1_1 || post.image_16_9 || post.image_9_16
+          }`}
+          download
+          className="px-3 py-2 border-2 border-black dark:border-white bg-blue-400 dark:bg-blue-600 text-black font-bold uppercase text-xs hover:translate-x-0.5 hover:translate-y-0.5 transition-transform text-center flex-1"
+        >
+          Download
+        </a>
+        <button
+          onClick={() => onDelete(post.id)}
+          className="px-3 py-2 border-2 border-black dark:border-white bg-red-500 text-white font-bold uppercase text-xs hover:translate-x-0.5 hover:translate-y-0.5 transition-transform flex-1"
+        >
+          Delete
+        </button>
+      </div>
+    );
   };
 
   return (
-    <div className="brutalist-card space-y-4">
-      {/* Header */}
-      <div className="flex justify-between items-start border-b-4 border-black dark:border-white pb-4">
-        <div>
-          <h3 className="text-2xl font-bold uppercase">{post.headline}</h3>
-          <p className="text-sm font-mono text-gray-600 dark:text-gray-400 mt-1">
-            Generated: {formatDate(post.created_at)}
-          </p>
+    <div className="border-2 border-black dark:border-white overflow-hidden bg-white dark:bg-black">
+      {/* Post Image Preview */}
+      <div className="relative">
+        {renderPostImage()}
+        {/* Hidden fallback for image error */}
+        <div className="hidden w-full h-64 bg-gray-200 dark:bg-gray-700 items-center justify-center">
+          <span className="text-6xl">🎨</span>
         </div>
-        <button
-          onClick={() => onDelete(post.id)}
-          className="brutalist-button bg-red-500 text-white text-sm"
-        >
-          🗑️ Delete
-        </button>
       </div>
+
+      {/* Aspect Ratio Selector */}
+      <div className="px-3 pt-3">{renderAspectRatioSelector()}</div>
 
       {/* Text Content */}
-      {renderTextContent()}
+      <div className="py-2">{renderTextContent()}</div>
 
-      {/* Image Gallery */}
-      <div>
-        <h4 className="text-lg font-bold uppercase mb-3">Generated Images</h4>
-        {renderImageGallery()}
-      </div>
+      {/* Action Buttons */}
+      {renderActionButtons()}
     </div>
   );
 }

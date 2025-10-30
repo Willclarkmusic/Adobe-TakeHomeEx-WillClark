@@ -136,6 +136,7 @@ class PostCreate(BaseModel):
     headline: str
     body_text: str
     caption: str
+    text_color: Optional[str] = None
     image_1_1: Optional[str] = None
     image_16_9: Optional[str] = None
     image_9_16: Optional[str] = None
@@ -149,6 +150,7 @@ class PostUpdate(BaseModel):
     headline: Optional[str] = None
     body_text: Optional[str] = None
     caption: Optional[str] = None
+    text_color: Optional[str] = None
     image_1_1: Optional[str] = None
     image_16_9: Optional[str] = None
     image_9_16: Optional[str] = None
@@ -165,6 +167,7 @@ class PostRead(BaseModel):
     headline: str
     body_text: str
     caption: str
+    text_color: Optional[str] = None
     image_1_1: Optional[str] = None
     image_16_9: Optional[str] = None
     image_9_16: Optional[str] = None

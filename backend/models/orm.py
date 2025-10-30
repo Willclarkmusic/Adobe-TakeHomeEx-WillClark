@@ -64,6 +64,7 @@ class Post(Base):
     headline = Column(Text, nullable=False)
     body_text = Column(Text, nullable=False)
     caption = Column(Text, nullable=False)
+    text_color = Column(String, nullable=True)  # Hex color code for headline background
     image_1_1 = Column(Text, nullable=True)  # Path to 1:1 aspect ratio image
     image_16_9 = Column(Text, nullable=True)  # Path to 16:9 aspect ratio image
     image_9_16 = Column(Text, nullable=True)  # Path to 9:16 aspect ratio image

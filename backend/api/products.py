@@ -4,8 +4,8 @@ Products API router.
 Handles all product-related CRUD endpoints.
 """
 import uuid
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models.orm import Product, Campaign
@@ -14,6 +14,26 @@ from services.file_manager import process_image_path
 
 
 router = APIRouter()
+
+
+@router.get("/products", response_model=List[ProductRead])
+async def get_products(campaign_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """
+    Get all products, optionally filtered by campaign_id.
+
+    Args:
+        campaign_id: Optional campaign ID to filter products
+        db: Database session
+
+    Returns:
+        List of products (filtered by campaign if provided)
+    """
+    query = db.query(Product)
+    if campaign_id:
+        query = query.filter(Product.campaign_id == campaign_id)
+
+    products = query.all()
+    return products
 
 
 @router.post("/products/validate", response_model=ProductValidationResponse)

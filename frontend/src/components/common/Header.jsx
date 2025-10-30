@@ -21,7 +21,7 @@ function Header({
 
   const renderTitle = () => {
     return (
-      <header className="mb-12">
+      <header className="mb-4">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-5xl font-bold uppercase tracking-tight">
             Creative Automation Hub
