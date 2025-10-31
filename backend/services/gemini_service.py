@@ -10,7 +10,8 @@ import re
 import logging
 from typing import Dict, Optional
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from PIL import Image
 import io
 
@@ -38,13 +39,12 @@ class GeminiService:
                 "Please add your API key to backend/.env file."
             )
 
-        genai.configure(api_key=api_key)
-        # Use gemini-2.5-flash - latest model with best price-performance
-        # Improved reasoning and quality vs 1.5 Flash at similar speed/cost
-        self.text_model = genai.GenerativeModel('gemini-2.5-flash')
+        # Create client for new google-genai SDK
+        self.client = genai.Client(api_key=api_key)
 
-        # Use gemini-2.5-flash-image for image generation and editing (img2img)
-        self.image_model = genai.GenerativeModel('gemini-2.5-flash-image')
+        # Model names for reference
+        self.text_model_name = 'gemini-2.5-flash'
+        self.image_model_name = 'gemini-2.5-flash-image'
 
     async def generate_post_copy(
         self,
@@ -85,8 +85,11 @@ class GeminiService:
         )
 
         try:
-            # Generate content using Gemini
-            response = self.text_model.generate_content(system_prompt)
+            # Generate content using Gemini with new SDK
+            response = self.client.models.generate_content(
+                model=self.text_model_name,
+                contents=system_prompt
+            )
 
             # Parse the response
             result = self.parse_gemini_response(response.text)
@@ -233,14 +236,22 @@ The "text_color" field should be a hex color code for the headline background th
         image_prompt = self._build_image_prompt(
             campaign_message=campaign_message,
             headline=headline,
-            user_prompt=user_prompt
+            user_prompt=user_prompt,
+            aspect_ratio=aspect_ratio
         )
         logger.info(f"         📝 Image prompt: {image_prompt[:100]}...")
 
         try:
-            # Generate image using Gemini with img2img
-            response = self.image_model.generate_content(
-                [image_prompt, product_image]
+            # Generate image using Gemini with img2img and aspect ratio config (new SDK)
+            response = self.client.models.generate_content(
+                model=self.image_model_name,
+                contents=[image_prompt, product_image],
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio=aspect_ratio
+                    )
+                )
             )
 
             # Extract generated image from response
@@ -265,16 +276,120 @@ The "text_color" field should be a hex color code for the headline background th
             logger.error(f"         ❌ Image generation failed: {str(e)}")
             raise Exception(f"Failed to generate product image: {str(e)}")
 
+    async def generate_product_image_adaptation(
+        self,
+        base_image: Image.Image,
+        headline: str,
+        new_aspect_ratio: str
+    ) -> Image.Image:
+        """
+        Adapt an existing generated image to a new aspect ratio.
+
+        This ensures visual consistency across multiple aspect ratios by extending/adapting
+        the same base image rather than generating completely new images.
+
+        Args:
+            base_image: PIL Image that was already generated for one aspect ratio
+            headline: The headline text (should already be on the image)
+            new_aspect_ratio: Target aspect ratio ("1:1", "16:9", or "9:16")
+
+        Returns:
+            PIL Image adapted to the new aspect ratio
+
+        Raises:
+            Exception: If image adaptation fails
+        """
+        logger.info(f"         🔄 Adapting image to {new_aspect_ratio}...")
+        logger.info(f"         📐 Source image size: {base_image.size}")
+
+        # Build adaptation prompt
+        adaptation_prompt = self._build_adaptation_prompt(headline, new_aspect_ratio)
+        logger.info(f"         📝 Adaptation prompt: {adaptation_prompt[:100]}...")
+
+        try:
+            # Adapt image using Gemini with img2img and aspect ratio config (new SDK)
+            response = self.client.models.generate_content(
+                model=self.image_model_name,
+                contents=[adaptation_prompt, base_image],
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio=new_aspect_ratio
+                    )
+                )
+            )
+
+            # Extract adapted image from response
+            if response.parts:
+                for part in response.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        image_data = part.inline_data.data
+                        adapted_image = Image.open(io.BytesIO(image_data))
+                        logger.info(f"         ✅ Image adapted successfully! Size: {adapted_image.size}")
+                        return adapted_image
+
+            if hasattr(response, 'image'):
+                logger.info(f"         ✅ Image adapted successfully (via response.image)")
+                return response.image
+
+            raise ValueError("No image data found in Gemini response")
+
+        except Exception as e:
+            logger.error(f"         ❌ Image adaptation failed: {str(e)}")
+            raise Exception(f"Failed to adapt image to {new_aspect_ratio}: {str(e)}")
+
+    def _build_adaptation_prompt(
+        self,
+        headline: str,
+        aspect_ratio: str
+    ) -> str:
+        """
+        Build a prompt for adapting an existing image to a new aspect ratio.
+        """
+        dimensions_map = {
+            "1:1": "1080x1080 pixels (square)",
+            "16:9": "1920x1080 pixels (landscape)",
+            "9:16": "1080x1920 pixels (vertical/story format)"
+        }
+        dimensions = dimensions_map.get(aspect_ratio, "1080x1080 pixels")
+
+        prompt = f"""Adapt this image to a new aspect ratio while maintaining the exact same visual style, and content.
+
+TARGET FORMAT:
+- Output size: exactly {dimensions}
+- Aspect ratio: {aspect_ratio}
+
+REQUIREMENTS:
+- Keep the EXACT same product, styling, colors, atmosphere, and visual elements
+- Keep the "{headline}" text in the same style and position relative to the new composition
+- Intelligently extend or crop the composition to fit the new {aspect_ratio}
+- If extending (adding more space), naturally continue the background/atmosphere as if the camera zoomed out
+- If cropping (removing space), do so in a way that preserves the key elements
+- Maintain visual consistency - this should look like the same image, just reformatted or zoomed out
+
+Create a version of this image at {dimensions} that feels like a natural recomposition, not a distorted stretch or tiling."""
+
+        return prompt
+
     def _build_image_prompt(
         self,
         campaign_message: str,
         headline: str,
-        user_prompt: str
+        user_prompt: str,
+        aspect_ratio: str = "1:1"
     ) -> str:
         """
         Build a detailed prompt for image generation that maintains product integrity
         while adding campaign-appropriate styling.
         """
+        # Map aspect ratios to exact dimensions
+        dimensions_map = {
+            "1:1": "1080x1080 pixels (square)",
+            "16:9": "1920x1080 pixels (landscape)",
+            "9:16": "1080x1920 pixels (vertical/story format)"
+        }
+        dimensions = dimensions_map.get(aspect_ratio, "1080x1080 pixels")
+
         prompt = f"""Transform this product image for a social media marketing campaign while keeping the product clearly recognizable.
 
 CAMPAIGN CONTEXT:
@@ -282,13 +397,20 @@ CAMPAIGN CONTEXT:
 - Post Headline: {headline}
 - Creative Direction: {user_prompt}
 
+OUTPUT FORMAT:
+- Generate the image at exactly {dimensions}
+- Compose the image to perfectly fit the {aspect_ratio} aspect ratio without any stretching or distortion
+- Fill the entire frame naturally and beautifully
+
 REQUIREMENTS:
 - Keep the product as the main focus and clearly identifiable
 - Add campaign-appropriate atmosphere, lighting, and styling
 - Enhance visual appeal for social media (vibrant, eye-catching)
 - Make it feel professional and on-brand
 - The style should complement the headline: "{headline}"
+- Add the "{headline}" text as an overlay in a visually appealing way appropriate for the campaign
+- Compose elements to naturally fill the {aspect_ratio} format
 
-Transform the image to match the campaign vibe while maintaining product clarity."""
+Transform the image to match the campaign vibe while maintaining product clarity and the specified dimensions."""
 
         return prompt

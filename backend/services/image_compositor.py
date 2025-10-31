@@ -29,13 +29,6 @@ class ImageCompositor:
         "9:16": (1080, 1920)      # Story/Vertical
     }
 
-    # Font sizes for HUGE, eye-catching headlines
-    FONT_SIZES = {
-        "1:1": {"headline": 120},      # Massive for square posts
-        "16:9": {"headline": 100},     # Big for landscape
-        "9:16": {"headline": 140}      # Huge for vertical/stories
-    }
-
     def __init__(self):
         """
         Initialize the image compositor.
@@ -50,21 +43,19 @@ class ImageCompositor:
         aspect_ratio: str,
         generated_image: Optional[Image.Image],
         brand_images: List[str],
-        headline: str,
-        text_color: str,
         campaign_name: str,
+        post_headline: str,
         output_filename: str
     ) -> str:
         """
-        Create a post image by adding headline overlay to Gemini-generated image.
+        Create a post image from Gemini-generated image with logo and border.
 
         Args:
             aspect_ratio: One of "1:1", "16:9", "9:16"
-            generated_image: PIL Image from Gemini (already stylized)
+            generated_image: PIL Image from Gemini (already has text on it)
             brand_images: List of paths to brand images
-            headline: Post headline text (HUGE, stylized)
-            text_color: Hex color code for headline background (e.g., "#FF4081")
             campaign_name: Campaign name for folder organization
+            post_headline: Post headline for folder naming
             output_filename: Filename for the output image (e.g., "image_1-1.png")
 
         Returns:
@@ -80,9 +71,16 @@ class ImageCompositor:
         # Use Gemini-generated image as the base, or create white canvas
         if generated_image:
             logger.info(f"      🖼️  Using Gemini-generated image as base ({generated_image.size})")
-            # Resize generated image to match canvas size
-            canvas = generated_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
-            logger.info(f"      ✅ Gemini image resized to canvas size")
+
+            # Check if Gemini gave us the exact size we need
+            if generated_image.size == (canvas_width, canvas_height):
+                logger.info(f"      ✅ Gemini image is already the perfect size!")
+                canvas = generated_image
+            else:
+                # Use cover/crop approach to avoid stretching
+                logger.info(f"      📐 Adjusting image to canvas size without stretching...")
+                canvas = self._resize_cover_crop(generated_image, canvas_width, canvas_height)
+                logger.info(f"      ✅ Image adjusted to canvas size (cover/crop, no stretch)")
         else:
             logger.info(f"      ⚠️  No generated image, creating white canvas")
             canvas = Image.new('RGB', (canvas_width, canvas_height), color='white')
@@ -95,59 +93,17 @@ class ImageCompositor:
         else:
             logger.info(f"      ⚠️  No brand images provided")
 
-        # Add HUGE stylized headline overlay (caption not included on image)
-        logger.info(f"      💬 Adding HUGE stylized headline: '{headline}'")
-        logger.info(f"      🎨 Using background color: {text_color}")
-        canvas = self._add_headline_overlay(canvas, headline, text_color, aspect_ratio)
-        logger.info(f"      ✅ Headline overlay composited onto image!")
-
         # Add border for neo-brutalist aesthetic
         canvas = self._add_border(canvas)
         logger.info(f"      🖼️  Neo-brutalist border added")
 
         # Save image
-        logger.info(f"      💾 Saving final composited image...")
-        output_path = self._save_image(canvas, campaign_name, headline, output_filename)
+        logger.info(f"      💾 Saving final image...")
+        output_path = self._save_image(canvas, campaign_name, post_headline, output_filename)
         logger.info(f"      ✅ Image saved to: {output_path}")
 
         return output_path
 
-    async def _add_product_image(self, canvas: Image.Image, product_path: str, aspect_ratio: str) -> Image.Image:
-        """
-        Add product image to canvas based on aspect ratio template.
-        """
-        try:
-            # Load product image
-            product_img = await self._load_image(product_path)
-
-            canvas_width, canvas_height = canvas.size
-
-            if aspect_ratio == "1:1":
-                # Center product in top 60% of canvas
-                product_img = self._resize_to_fit(product_img, int(canvas_width * 0.8), int(canvas_height * 0.6))
-                x = (canvas_width - product_img.width) // 2
-                y = int(canvas_height * 0.1)
-
-            elif aspect_ratio == "16:9":
-                # Place product on left side
-                product_img = self._resize_to_fit(product_img, int(canvas_width * 0.45), int(canvas_height * 0.7))
-                x = int(canvas_width * 0.05)
-                y = (canvas_height - product_img.height) // 2
-
-            else:  # 9:16
-                # Place product in top 60%
-                product_img = self._resize_to_fit(product_img, int(canvas_width * 0.85), int(canvas_height * 0.5))
-                x = (canvas_width - product_img.width) // 2
-                y = int(canvas_height * 0.1)
-
-            # Paste product image
-            canvas.paste(product_img, (x, y), product_img if product_img.mode == 'RGBA' else None)
-
-            return canvas
-
-        except Exception as e:
-            print(f"Warning: Failed to add product image: {e}")
-            return canvas
 
     async def _add_brand_overlay(self, canvas: Image.Image, brand_path: str, aspect_ratio: str) -> Image.Image:
         """
@@ -179,161 +135,6 @@ class ImageCompositor:
             print(f"Warning: Failed to add brand overlay: {e}")
             return canvas
 
-    def _add_headline_overlay(self, canvas: Image.Image, headline: str, text_color: str, aspect_ratio: str) -> Image.Image:
-        """
-        Add HUGE, stylized headline overlay to the canvas.
-        Only headline is composited - caption stays in DB only.
-        """
-        draw = ImageDraw.Draw(canvas)
-        canvas_width, canvas_height = canvas.size
-
-        # Get HUGE font size for this aspect ratio
-        font_size = self.FONT_SIZES[aspect_ratio]["headline"]
-        logger.info(f"         🔤 Font size: {font_size}px")
-
-        # Try multiple font paths
-        font_paths = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
-            "DejaVuSans-Bold.ttf",  # Try without path
-        ]
-
-        headline_font = None
-        for font_path in font_paths:
-            try:
-                headline_font = ImageFont.truetype(font_path, font_size)
-                logger.info(f"         ✅ Loaded font: {font_path}")
-                break
-            except Exception as e:
-                logger.info(f"         ⚠️  Failed to load {font_path}: {e}")
-                continue
-
-        if headline_font is None:
-            # Last resort: use default font (will be tiny)
-            logger.error(f"         ❌ ALL FONTS FAILED! Using default (will be tiny)")
-            headline_font = ImageFont.load_default()
-
-        # Parse hex color (with fallback to hot pink)
-        try:
-            bg_color = tuple(int(text_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-            logger.info(f"         🎨 Parsed color: RGB{bg_color}")
-        except:
-            bg_color = (255, 64, 129)  # Default hot pink #FF4081
-            logger.info(f"         ⚠️  Using default hot pink color")
-
-        logger.info(f"         📏 Canvas dimensions: {canvas_width}x{canvas_height}")
-
-        # Position headline based on aspect ratio
-        if aspect_ratio == "1:1":
-            # Bottom of square post
-            self._draw_stylized_headline(
-                draw, headline, headline_font,
-                x=canvas_width // 2,
-                y=int(canvas_height * 0.85),
-                canvas_width=int(canvas_width * 0.9),
-                bg_color=bg_color
-            )
-
-        elif aspect_ratio == "16:9":
-            # Right side for landscape
-            text_x = int(canvas_width * 0.70)
-            self._draw_stylized_headline(
-                draw, headline, headline_font,
-                x=text_x,
-                y=int(canvas_height * 0.5),
-                canvas_width=int(canvas_width * 0.25),
-                bg_color=bg_color
-            )
-
-        else:  # 9:16
-            # Bottom third for vertical/story
-            self._draw_stylized_headline(
-                draw, headline, headline_font,
-                x=canvas_width // 2,
-                y=int(canvas_height * 0.80),
-                canvas_width=int(canvas_width * 0.85),
-                bg_color=bg_color
-            )
-
-        return canvas
-
-    def _draw_stylized_headline(
-        self,
-        draw: ImageDraw.ImageDraw,
-        text: str,
-        font: ImageFont.FreeTypeFont,
-        x: int,
-        y: int,
-        canvas_width: int,
-        bg_color: Tuple[int, int, int]
-    ):
-        """
-        Draw HUGE stylized headline with vibrant colored background and bold border.
-        Super eye-catching for social media!
-        """
-        logger.info(f"         ✏️  Drawing text at position ({x}, {y})")
-
-        # Wrap text to fit width
-        wrapped_text = self._wrap_text(text, font, canvas_width - 60)
-        logger.info(f"         📝 Text wrapped to: '{wrapped_text}'")
-
-        # Get text bounding box
-        bbox = draw.textbbox((0, 0), wrapped_text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        logger.info(f"         📐 Text box size: {text_width}x{text_height}")
-
-        # HUGE padding for impact
-        padding = 40
-        bg_x1 = x - text_width // 2 - padding
-        bg_y1 = y - text_height // 2 - padding
-        bg_x2 = x + text_width // 2 + padding
-        bg_y2 = y + text_height // 2 + padding
-
-        # Draw thick black border for neo-brutalist style
-        border_width = 8
-        draw.rectangle(
-            [bg_x1 - border_width, bg_y1 - border_width, bg_x2 + border_width, bg_y2 + border_width],
-            fill=(0, 0, 0)
-        )
-        logger.info(f"         ⬛ Black border drawn (8px)")
-
-        # Draw vibrant colored background
-        draw.rectangle([bg_x1, bg_y1, bg_x2, bg_y2], fill=bg_color)
-        logger.info(f"         🟦 Colored background drawn RGB{bg_color}")
-
-        # Draw white text for maximum contrast
-        draw.text((x, y), wrapped_text, font=font, fill=(255, 255, 255), anchor="mm", align="center", stroke_width=2, stroke_fill=(0, 0, 0))
-        logger.info(f"         ✅ WHITE TEXT DRAWN! (with black stroke)")
-
-    def _wrap_text(self, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> str:
-        """
-        Wrap text to fit within max_width.
-        """
-        words = text.split()
-        lines = []
-        current_line = []
-
-        for word in words:
-            current_line.append(word)
-            line = ' '.join(current_line)
-            bbox = font.getbbox(line)
-            if bbox[2] - bbox[0] > max_width:
-                if len(current_line) == 1:
-                    # Single word is too long, just use it
-                    lines.append(current_line.pop())
-                else:
-                    # Remove last word and start new line
-                    current_line.pop()
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
-
-        if current_line:
-            lines.append(' '.join(current_line))
-
-        return '\n'.join(lines)
-
     def _add_border(self, canvas: Image.Image, border_width: int = 8) -> Image.Image:
         """
         Add a bold border for neo-brutalist aesthetic.
@@ -354,6 +155,48 @@ class ImageCompositor:
         image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
         return image
 
+    def _resize_cover_crop(self, image: Image.Image, target_width: int, target_height: int) -> Image.Image:
+        """
+        Resize and crop image to cover target dimensions without stretching.
+
+        Uses the 'cover' approach: scales the image to fill the target dimensions,
+        maintaining aspect ratio, then crops the overflow.
+
+        Args:
+            image: Source image
+            target_width: Target width
+            target_height: Target height
+
+        Returns:
+            Image resized and cropped to exact target dimensions
+        """
+        source_width, source_height = image.size
+        source_ratio = source_width / source_height
+        target_ratio = target_width / target_height
+
+        # Calculate scale to cover (not fit)
+        if source_ratio > target_ratio:
+            # Source is wider - scale based on height
+            scale = target_height / source_height
+        else:
+            # Source is taller or same ratio - scale based on width
+            scale = target_width / source_width
+
+        # Resize maintaining aspect ratio
+        new_width = int(source_width * scale)
+        new_height = int(source_height * scale)
+        resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        # Center crop to target dimensions
+        left = (new_width - target_width) // 2
+        top = (new_height - target_height) // 2
+        right = left + target_width
+        bottom = top + target_height
+
+        cropped = resized.crop((left, top, right, bottom))
+
+        return cropped
+
     async def _load_image(self, image_path: str) -> Image.Image:
         """
         Load image from path (supports both local files and URLs).
@@ -371,9 +214,10 @@ class ImageCompositor:
             local_path = self.files_dir / image_path.lstrip('/static/')
             return Image.open(local_path)
 
+
     def _save_image(self, canvas: Image.Image, campaign_name: str, headline: str, filename: str) -> str:
         """
-        Save image to structured path and return relative path.
+        Save final post image (Gemini-generated with logo and border).
 
         Path format: posts/{CampaignName}_{PostHeadline}/image_{aspectRatio}.png
         """

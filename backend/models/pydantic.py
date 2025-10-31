@@ -187,3 +187,13 @@ class PostGenerateRequest(BaseModel):
     product_id: str
     prompt: str
     aspect_ratios: List[str] = ["1:1"]  # Default to 1:1, can include "16:9", "9:16"
+
+
+class PostRegenerateRequest(BaseModel):
+    """
+    Schema for regenerating post images.
+    Replaces existing images with newly generated ones.
+    """
+    product_id: str
+    prompt: str
+    aspect_ratios: List[str] = ["1:1"]  # Aspect ratios to regenerate

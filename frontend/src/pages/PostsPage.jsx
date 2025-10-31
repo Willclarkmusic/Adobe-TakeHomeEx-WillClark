@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import PostCard from "../components/PostCard";
 import PostGenerateForm from "../components/PostGenerateForm";
+import PostEditModal from "../components/PostEditModal";
 import Modal from "../components/Modal";
 
 /**
@@ -11,6 +12,7 @@ function PostsPage({ selectedCampaign }) {
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
 
   // ============ Lifecycle Methods ============
 
@@ -57,8 +59,17 @@ function PostsPage({ selectedCampaign }) {
   };
 
   const handleEditPost = (post) => {
-    // TODO: Implement edit functionality
-    alert("Edit functionality coming soon! For now, you can delete and regenerate.");
+    setEditingPost(post);
+  };
+
+  const handleSaveEdit = (updatedPost) => {
+    // Update the post in the list
+    setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p));
+    setEditingPost(null);
+  };
+
+  const handleCloseEdit = () => {
+    setEditingPost(null);
   };
 
   const handleDeletePost = async (postId) => {
@@ -181,6 +192,16 @@ function PostsPage({ selectedCampaign }) {
 
       {/* Generate Modal */}
       {renderGenerateModal()}
+
+      {/* Edit Modal */}
+      {editingPost && (
+        <PostEditModal
+          isOpen={true}
+          onClose={handleCloseEdit}
+          post={editingPost}
+          onSave={handleSaveEdit}
+        />
+      )}
     </div>
   );
 }
