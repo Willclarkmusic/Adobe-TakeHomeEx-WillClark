@@ -306,6 +306,9 @@ The "text_color" field should be a hex color code for the headline background th
         adaptation_prompt = self._build_adaptation_prompt(headline, new_aspect_ratio)
         logger.info(f"         📝 Adaptation prompt: {adaptation_prompt[:100]}...")
 
+        ##################################################
+        # Generate With Gemini
+        ##################################################
         try:
             # Adapt image using Gemini with img2img and aspect ratio config (new SDK)
             response = self.client.models.generate_content(
