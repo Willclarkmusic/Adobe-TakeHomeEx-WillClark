@@ -14,9 +14,10 @@ from api.products import router as products_router
 from api.media import router as media_router
 from api.posts import router as posts_router
 from api.moods import router as moods_router
+from api.deploy import router as deploy_router
 
 # Import ORM models to ensure they're registered with SQLAlchemy
-from models.orm import Campaign, Product, Post, MoodMedia
+from models.orm import Campaign, Product, Post, MoodMedia, ScheduledPost
 
 
 # Create FastAPI application
@@ -41,6 +42,7 @@ app.include_router(products_router, prefix="/api", tags=["Products"])
 app.include_router(posts_router, prefix="/api", tags=["Posts"])
 app.include_router(media_router, prefix="/api", tags=["Media"])
 app.include_router(moods_router, tags=["Moods"])
+app.include_router(deploy_router, tags=["Deploy"])
 
 # Mount static files directory
 # Get the absolute path to the files directory

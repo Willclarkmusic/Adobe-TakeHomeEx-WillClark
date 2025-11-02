@@ -639,20 +639,18 @@ TECHNICAL SPECIFICATIONS:
                         logger.error(f"  ❌ Reference image not found: {img_path}")
                         raise ValueError(f"Reference image not found: {img_path}. Aborting video generation.")
 
-                    # Read image as bytes
-                    with open(file_path, 'rb') as f:
-                        image_bytes = f.read()
+                    # Load as PIL Image (like the example: image.generated_images[0].image)
+                    reference_image = Image.open(file_path)
 
-                    # Determine MIME type
-                    mime_type = "image/png" if img_path.lower().endswith('.png') else "image/jpeg"
+                    # Convert to RGB if it's RGBA (PNG with transparency)
+                    if reference_image.mode == 'RGBA':
+                        logger.info(f"  Converting RGBA to RGB...")
+                        # Create white background
+                        rgb_image = Image.new('RGB', reference_image.size, (255, 255, 255))
+                        rgb_image.paste(reference_image, mask=reference_image.split()[3])  # Use alpha channel as mask
+                        reference_image = rgb_image
 
-                    # Create Part from bytes (this is what the SDK expects)
-                    reference_image = types.Part.from_bytes(
-                        data=image_bytes,
-                        mime_type=mime_type
-                    )
-
-                    logger.info(f"  ✓ Loaded reference image: {img_path} ({len(image_bytes)} bytes, {mime_type})")
+                    logger.info(f"  ✓ Loaded reference image: {img_path} (size: {reference_image.size}, mode: {reference_image.mode})")
 
                 except Exception as e:
                     logger.error(f"  ❌ Failed to load reference image: {str(e)}")
@@ -663,11 +661,24 @@ TECHNICAL SPECIFICATIONS:
 
             if reference_image:
                 logger.info(f"  🎬 Calling Veo API with 1 reference image...")
+
+                # Ensure PIL Image is fully loaded into memory
+                reference_image.load()
+
+                # Wrap in VideoGenerationReferenceImage (like the multi-image example)
+                ref_image = types.VideoGenerationReferenceImage(
+                    image=reference_image,
+                    reference_type="asset"
+                )
+
+                logger.info(f"  📋 PIL Image loaded: size={reference_image.size}, mode={reference_image.mode}")
+                logger.info(f"  📋 Wrapped in VideoGenerationReferenceImage, passing as single-item list")
+
                 operation = self.client.models.generate_videos(
                     model=veo_model,
                     prompt=enhanced_prompt,
-                    image=reference_image,  # Single PIL Image directly
                     config=types.GenerateVideosConfig(
+                        reference_images=[ref_image],  # Single image in list
                         aspect_ratio=aspect_ratio,
                     )
                 )

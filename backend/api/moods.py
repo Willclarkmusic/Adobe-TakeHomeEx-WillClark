@@ -287,18 +287,12 @@ async def upload_mood_media(
 
         logger.info(f"  ✓ Saved locally: {file_path}")
 
-        # Upload to GCS if enabled
-        content_type = file.content_type or ("image/png" if is_image else "video/mp4")
-        gcs_uri = gcs_service.upload_mood_file(file_data, filename, content_type)
-        if gcs_uri:
-            logger.info(f"  ✅ Uploaded to GCS: {gcs_uri}")
-
         # Create DB entry (is_generated = False)
         mood_media = MoodMedia(
             id=str(uuid.uuid4()),
             campaign_id=campaign_id,
             file_path=file_path,
-            gcs_uri=gcs_uri,
+            gcs_uri=None,  # Not using GCS
             media_type=media_type,
             is_generated=False,  # Manual upload
             prompt=None,

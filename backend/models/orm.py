@@ -100,3 +100,29 @@ class MoodMedia(Base):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="mood_media")
+
+
+class ScheduledPost(Base):
+    """
+    Scheduled Post model for tracking social media posts scheduled via Ayrshare.
+
+    Links to a post and campaign. Stores scheduling configuration, target platforms,
+    and Ayrshare API response data.
+    """
+    __tablename__ = "scheduled_posts"
+
+    id = Column(String, primary_key=True, index=True)
+    post_id = Column(String, ForeignKey("posts.id"), nullable=False, index=True)
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
+    schedule_type = Column(String, nullable=False)  # "immediate", "scheduled", "recurring"
+    platforms = Column(Text, nullable=False)  # JSON array of platform names (e.g., ["instagram", "facebook"])
+    schedule_time = Column(DateTime, nullable=True)  # Null for immediate posts
+    recurring_config = Column(Text, nullable=True)  # JSON: {repeat: 4, days: 7, order: "random"/"sequential"}
+    ayrshare_post_id = Column(String, nullable=True)  # Ayrshare API response ID
+    status = Column(String, default="pending", nullable=False)  # "pending", "posted", "failed", "cancelled"
+    error_message = Column(Text, nullable=True)  # Error details if status is "failed"
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    post = relationship("Post")
+    campaign = relationship("Campaign")
