@@ -9,7 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models.orm import Product, Campaign
-from models.pydantic import ProductCreate, ProductUpdate, ProductRead, ProductValidationResponse
+from models.pydantic import (
+    ProductCreate, ProductUpdate, ProductRead, ProductValidationResponse,
+    ProductBatchCreate, ProductBatchValidationResponse
+)
 from services.file_manager import process_image_path
 
 
@@ -56,6 +59,109 @@ async def validate_product(data: dict = Body(...)):
         "missing_fields": missing_fields,
         "is_complete": len(missing_fields) == 0
     }
+
+
+@router.post("/products/batch/validate", response_model=ProductBatchValidationResponse)
+async def validate_products_batch(data: List[dict] = Body(...)):
+    """
+    Validate multiple products from batch JSON upload.
+    Returns validation results for all products.
+
+    Args:
+        data: List of product data dictionaries
+
+    Returns:
+        Batch validation response with valid and invalid products
+    """
+    required_fields = ["name", "campaign_id"]
+    valid_products = []
+    invalid_products = []
+
+    for index, product_data in enumerate(data):
+        missing_fields = [field for field in required_fields if not product_data.get(field)]
+
+        if len(missing_fields) == 0:
+            valid_products.append(product_data)
+        else:
+            invalid_products.append({
+                "index": index,
+                "data": product_data,
+                "errors": f"Missing fields: {', '.join(missing_fields)}"
+            })
+
+    return {
+        "valid_products": valid_products,
+        "invalid_products": invalid_products,
+        "is_complete": len(invalid_products) == 0
+    }
+
+
+@router.post("/products/batch", response_model=List[ProductRead], status_code=status.HTTP_201_CREATED)
+async def create_products_batch(batch_data: ProductBatchCreate, db: Session = Depends(get_db)):
+    """
+    Create multiple products in a single transaction.
+    All products must be valid or the entire batch fails (transaction rollback).
+
+    Args:
+        batch_data: Batch create request with list of products
+        db: Database session
+
+    Returns:
+        List of created products
+
+    Raises:
+        404: If any campaign not found
+        500: If any product creation fails
+    """
+    created_products = []
+
+    try:
+        for product in batch_data.products:
+            # Verify campaign exists
+            campaign = db.query(Campaign).filter(Campaign.id == product.campaign_id).first()
+            if not campaign:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Campaign with id {product.campaign_id} not found"
+                )
+
+            # Process image path - download if URL
+            image_path = product.image_path
+            if image_path:
+                image_path = await process_image_path(image_path)
+
+            # Create new product
+            db_product = Product(
+                id=str(uuid.uuid4()),
+                campaign_id=product.campaign_id,
+                name=product.name,
+                description=product.description,
+                image_path=image_path
+            )
+
+            db.add(db_product)
+            created_products.append(db_product)
+
+        # Commit all products in single transaction
+        db.commit()
+
+        # Refresh all products to get generated fields
+        for product in created_products:
+            db.refresh(product)
+
+        return created_products
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        db.rollback()
+        raise
+    except Exception as e:
+        # Rollback on any error
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch product creation failed: {str(e)}"
+        )
 
 
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)

@@ -183,7 +183,7 @@ function ProductList({ products, onEdit, onDelete }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {products.map((product) => renderProduct(product))}
+      {products.filter(product => product != null).map((product) => renderProduct(product))}
     </div>
   );
 }

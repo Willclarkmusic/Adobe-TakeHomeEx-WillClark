@@ -113,6 +113,23 @@ class ProductValidationResponse(BaseModel):
     is_complete: bool
 
 
+class ProductBatchValidationResponse(BaseModel):
+    """
+    Schema for batch product validation response.
+    Returns validation results for multiple products.
+    """
+    valid_products: List[dict]  # Products that passed validation
+    invalid_products: List[dict]  # Products with errors (includes error messages)
+    is_complete: bool  # True if all products are valid
+
+
+class ProductBatchCreate(BaseModel):
+    """
+    Schema for creating multiple products in a single request.
+    """
+    products: List[ProductCreate]
+
+
 class ProductRead(BaseModel):
     """
     Schema for reading/returning product data via API.
@@ -197,3 +214,69 @@ class PostRegenerateRequest(BaseModel):
     product_id: str
     prompt: str
     aspect_ratios: List[str] = ["1:1"]  # Aspect ratios to regenerate
+
+
+class MoodMediaCreate(BaseModel):
+    """
+    Schema for creating mood media manually.
+    """
+    campaign_id: str
+    file_path: str
+    media_type: str  # "image" or "video"
+    is_generated: bool = False
+    prompt: Optional[str] = None
+    source_images: Optional[str] = None  # JSON array
+    aspect_ratio: Optional[str] = None
+    generation_metadata: Optional[str] = None  # JSON object
+
+
+class MoodMediaRead(BaseModel):
+    """
+    Schema for reading/returning mood media data via API.
+    """
+    id: str
+    campaign_id: str
+    file_path: str
+    gcs_uri: Optional[str] = None
+    media_type: str
+    is_generated: bool
+    prompt: Optional[str] = None
+    source_images: Optional[str] = None
+    aspect_ratio: Optional[str] = None
+    generation_metadata: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MoodImageGenerateRequest(BaseModel):
+    """
+    Schema for mood board image generation request.
+    Generates 1-3 separate images (one per ratio).
+    """
+    campaign_id: str
+    prompt: str
+    source_images: List[str] = []  # Paths to source images
+    ratios: List[str] = ["1:1"]  # Up to 3 ratios: "1:1", "3:4", "4:3", "9:16", "16:9"
+
+
+class MoodVideoGenerateRequest(BaseModel):
+    """
+    Schema for mood board video generation request (Veo).
+    Generates a single video.
+    """
+    campaign_id: str
+    prompt: str
+    source_images: List[str] = []  # Max 3 source images
+    ratio: str = "16:9"  # "16:9" or "9:16"
+    duration: int = 6  # 4, 6, or 8 seconds
+
+
+class MoodAvailableImagesResponse(BaseModel):
+    """
+    Schema for returning available images for mood generation.
+    Includes products and existing mood images.
+    """
+    products: List[ProductRead]
+    mood_images: List[MoodMediaRead]

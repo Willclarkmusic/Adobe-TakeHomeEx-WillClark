@@ -88,7 +88,12 @@ function CampaignPage({
   };
 
   const handleProductSaved = (savedProduct) => {
-    if (editingProduct) {
+    // If no product passed (e.g., batch creation), just refresh the entire list
+    if (!savedProduct) {
+      if (selectedCampaign) {
+        fetchProducts(selectedCampaign.id);
+      }
+    } else if (editingProduct) {
       updateProductInList(savedProduct);
     } else {
       addProductToList(savedProduct);

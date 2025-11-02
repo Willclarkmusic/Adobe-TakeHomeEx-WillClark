@@ -1,7 +1,7 @@
 """
 SQLAlchemy ORM models for the Creative Automation Hub.
 """
-from sqlalchemy import Column, String, Text, ForeignKey, Date, Integer, DateTime
+from sqlalchemy import Column, String, Text, ForeignKey, Date, Integer, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -28,6 +28,7 @@ class Campaign(Base):
     # Relationships
     products = relationship("Product", back_populates="campaign", cascade="all, delete-orphan")
     posts = relationship("Post", back_populates="campaign", cascade="all, delete-orphan")
+    mood_media = relationship("MoodMedia", back_populates="campaign", cascade="all, delete-orphan")
 
 
 class Product(Base):
@@ -74,3 +75,28 @@ class Post(Base):
     # Relationships
     campaign = relationship("Campaign", back_populates="posts")
     product = relationship("Product", back_populates="posts")
+
+
+class MoodMedia(Base):
+    """
+    Mood Media model representing mood board media (images and videos).
+
+    Can be AI-generated or manually uploaded. Stores metadata about generation
+    including prompts, source images, and aspect ratios.
+    """
+    __tablename__ = "moods_media"
+
+    id = Column(String, primary_key=True, index=True)
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
+    file_path = Column(Text, nullable=False)  # Relative path (e.g., moods/Summer2025_img_20250111_143022_1-1.png)
+    gcs_uri = Column(Text, nullable=True)  # GCS URI (e.g., gs://bucket/moods/file.png) - for Veo reference images
+    media_type = Column(String, nullable=False)  # "image" or "video"
+    is_generated = Column(Boolean, default=True, nullable=False)  # False for manual uploads
+    prompt = Column(Text, nullable=True)  # Full prompt used for AI generation
+    source_images = Column(Text, nullable=True)  # JSON array of source image paths
+    aspect_ratio = Column(String, nullable=True)  # "1:1", "16:9", etc.
+    generation_metadata = Column(Text, nullable=True)  # JSON object with model, duration, seed, etc.
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="mood_media")

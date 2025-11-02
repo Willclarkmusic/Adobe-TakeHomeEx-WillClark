@@ -14,6 +14,8 @@ from google import genai
 from google.genai import types
 from PIL import Image
 import io
+import asyncio
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -85,7 +87,9 @@ class GeminiService:
         )
 
         try:
-            # Generate content using Gemini with new SDK
+            ##################################################
+            # Generate Text Content With Gemini
+            ##################################################
             response = self.client.models.generate_content(
                 model=self.text_model_name,
                 contents=system_prompt
@@ -119,7 +123,7 @@ class GeminiService:
         desc_section = f"\n- Product Description: {product_description}" if product_description else ""
 
         prompt = f"""You are a professional social media copywriter specializing in creative ad campaigns.
-
+        
 Generate compelling social media post content based on the following information:
 
 CAMPAIGN INFORMATION:
@@ -141,6 +145,8 @@ Generate a JSON object with exactly three fields:
 
 STYLE GUIDELINES:
 - Match the tone to the target audience
+- Match the primary language of the region unless specified otherwise or if region is Global use English
+    - Here's the region: {target_region}
 - Incorporate the campaign message naturally
 - Make it platform-appropriate for Instagram/Facebook/LinkedIn
 - Use active voice and compelling language
@@ -149,10 +155,10 @@ STYLE GUIDELINES:
 
 IMPORTANT: Return ONLY a valid JSON object with no additional text or explanation. Format:
 {{
-  "headline": "Your headline here",
-  "body_text": "Your body text here",
-  "caption": "Your caption here",
-  "text_color": "#RRGGBB"
+"headline": "Your headline here",
+"body_text": "Your body text here",
+"caption": "Your caption here",
+"text_color": "#RRGGBB"
 }}
 
 The "text_color" field should be a hex color code for the headline background that:
@@ -242,7 +248,9 @@ The "text_color" field should be a hex color code for the headline background th
         logger.info(f"         📝 Image prompt: {image_prompt[:100]}...")
 
         try:
-            # Generate image using Gemini with img2img and aspect ratio config (new SDK)
+            ##################################################
+            # Generate New Post With Gemini
+            ##################################################
             response = self.client.models.generate_content(
                 model=self.image_model_name,
                 contents=[image_prompt, product_image],
@@ -262,7 +270,8 @@ The "text_color" field should be a hex color code for the headline background th
                         # Convert inline_data to PIL Image
                         image_data = part.inline_data.data
                         generated_image = Image.open(io.BytesIO(image_data))
-                        logger.info(f"         ✅ Image generated successfully! Size: {generated_image.size}")
+                        logger.info(
+                            f"         ✅ Image generated successfully! Size: {generated_image.size}")
                         return generated_image
 
             # If no image found in parts, try alternative access
@@ -306,11 +315,11 @@ The "text_color" field should be a hex color code for the headline background th
         adaptation_prompt = self._build_adaptation_prompt(headline, new_aspect_ratio)
         logger.info(f"         📝 Adaptation prompt: {adaptation_prompt[:100]}...")
 
-        ##################################################
-        # Generate With Gemini
-        ##################################################
+
         try:
-            # Adapt image using Gemini with img2img and aspect ratio config (new SDK)
+            ##################################################
+            # Generate New Aspect Ratio With Gemini img2img
+            ##################################################
             response = self.client.models.generate_content(
                 model=self.image_model_name,
                 contents=[adaptation_prompt, base_image],
@@ -417,3 +426,289 @@ REQUIREMENTS:
 Transform the image to match the campaign vibe while maintaining product clarity and the specified dimensions."""
 
         return prompt
+
+    async def generate_mood_image(
+        self,
+        prompt: str,
+        source_images: list,
+        aspect_ratio: str = "1:1"
+    ) -> bytes:
+        """
+        Generate mood board image with Gemini 2.5 Flash Image.
+
+        Creates inspirational creative material for mood boards without text overlays.
+
+        Args:
+            prompt: User's creative direction
+            source_images: List of source image paths (products/existing moods)
+            aspect_ratio: Desired aspect ratio
+
+        Returns:
+            Image bytes (PNG format)
+
+        Raises:
+            Exception: If image generation fails
+        """
+        logger.info(f"🎨 Generating mood board image ({aspect_ratio})...")
+
+        # Build mood board specific system prompt
+        system_prompt = """You are creating inspirational creative material for a social media campaign mood board.
+
+CRITICAL RULES:
+- DO NOT include any text, words, letters, or typography on the image
+- DO NOT add captions, labels, or written content of any kind
+- Focus purely on visual aesthetics, mood, atmosphere, and emotion
+- Create cohesive compositions that blend the reference images naturally
+- Emphasize lighting, color palette, and visual storytelling
+- Generate professional, high-quality visuals suitable for brand campaigns
+
+Your output should be a visually stunning image with NO TEXT whatsoever."""
+
+        # Load source images as PIL Images
+        image_parts = []
+        failed_images = []
+
+        for img_path in source_images:
+            try:
+                # Handle different path formats
+                clean_path = img_path.lstrip('/')
+
+                # Remove /static/ prefix if present
+                if clean_path.startswith('static/'):
+                    clean_path = clean_path[7:]  # Remove "static/"
+
+                # Backend runs from backend/ dir, files are in ../files/
+                possible_paths = [
+                    f"../files/{clean_path}",
+                    f"files/{clean_path}",
+                    clean_path
+                ]
+
+                loaded = False
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        with Image.open(path) as img:
+                            image_parts.append(img.copy())
+                        logger.info(f"  ✓ Loaded source image: {img_path}")
+                        loaded = True
+                        break
+
+                if not loaded:
+                    logger.warning(f"  ⚠️ Could not find source image: {img_path}")
+                    failed_images.append(img_path)
+            except Exception as e:
+                logger.warning(f"  ⚠️ Failed to load {img_path}: {str(e)}")
+                failed_images.append(img_path)
+
+        # If source images were provided but none could be loaded, fail
+        if source_images and not image_parts:
+            raise ValueError(
+                f"Could not load any of the {len(source_images)} source images. "
+                f"Generation aborted. Failed images: {', '.join(failed_images)}"
+            )
+
+        # Combine system prompt with user prompt
+        full_prompt = f"""{system_prompt}
+
+USER CREATIVE DIRECTION:
+{prompt}
+
+Generate a visually stunning mood board image that captures this creative direction."""
+
+        try:
+            # Generate with Gemini 2.5 Flash Image
+            response = self.client.models.generate_content(
+                model=self.image_model_name,
+                contents=[full_prompt] + image_parts,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio=aspect_ratio
+                    )
+                )
+            )
+
+            # Extract generated image
+            if response.parts:
+                for part in response.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        image_data = part.inline_data.data
+                        logger.info(f"  ✅ Mood image generated successfully")
+                        return image_data
+
+            if hasattr(response, 'image'):
+                # Convert PIL Image to bytes
+                img_byte_arr = io.BytesIO()
+                response.image.save(img_byte_arr, format='PNG')
+                logger.info(f"  ✅ Mood image generated successfully")
+                return img_byte_arr.getvalue()
+
+            raise ValueError("No image data found in Gemini response")
+
+        except Exception as e:
+            logger.error(f"  ❌ Mood image generation failed: {str(e)}")
+            raise Exception(f"Failed to generate mood image: {str(e)}")
+
+    async def generate_veo_video(
+        self,
+        prompt: str,
+        source_images: list,
+        aspect_ratio: str = "16:9",
+        duration: int = 6
+    ) -> bytes:
+        """
+        Generate mood board video with Veo (async with polling).
+
+        Creates inspirational video material for mood boards.
+
+        Args:
+            prompt: User's creative direction
+            source_images: List of source image paths (max 3)
+            aspect_ratio: "16:9" or "9:16"
+            duration: Video duration in seconds (4, 6, or 8)
+
+        Returns:
+            Video bytes (MP4 format)
+
+        Raises:
+            Exception: If video generation fails
+        """
+        logger.info(f"🎬 Generating mood board video with Veo ({aspect_ratio}, {duration}s)...")
+
+        # Build mood board specific system prompt for video
+        system_prompt = """Create inspirational video material for a social media campaign mood board.
+
+CRITICAL RULES:
+- DO NOT include any text or typography on the video
+- Create smooth, cinematic motion
+- Maintain visual coherence throughout the video
+- Focus on atmosphere, emotion, and visual storytelling
+- Generate professional, high-quality video suitable for brand campaigns
+
+Your output should be a visually stunning video with NO TEXT whatsoever."""
+
+        # Combine system prompt with user prompt
+        full_prompt = f"""{system_prompt}
+
+USER CREATIVE DIRECTION:
+{prompt}
+
+Generate a cinematic video that captures this creative direction with smooth motion and visual appeal."""
+
+        try:
+            # Start video generation (async operation)
+            logger.info("  ⏳ Starting Veo generation (this may take 30-60 seconds)...")
+
+            # Veo 3.1 model name (standard version supports reference images)
+            veo_model = "veo-3.1-generate-preview"
+
+            # Build prompt with technical specifications
+            enhanced_prompt = f"""{full_prompt}
+
+TECHNICAL SPECIFICATIONS:
+- Aspect Ratio: {aspect_ratio}
+- Duration: {duration} seconds"""
+
+            # Load single reference image (0 or 1 only)
+            reference_image = None
+
+            if source_images and len(source_images) > 0:
+                img_path = source_images[0]  # Take only the first image
+                logger.info(f"  📸 Loading reference image: {img_path}")
+
+                try:
+                    # Handle different path formats
+                    clean_path = img_path.lstrip('/')
+                    if clean_path.startswith('static/'):
+                        clean_path = clean_path[7:]  # Remove "static/"
+
+                    # Try different possible locations
+                    possible_paths = [
+                        f"../files/{clean_path}",
+                        f"files/{clean_path}",
+                        clean_path
+                    ]
+
+                    file_path = None
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            file_path = path
+                            break
+
+                    if not file_path:
+                        logger.error(f"  ❌ Reference image not found: {img_path}")
+                        raise ValueError(f"Reference image not found: {img_path}. Aborting video generation.")
+
+                    # Read image as bytes
+                    with open(file_path, 'rb') as f:
+                        image_bytes = f.read()
+
+                    # Determine MIME type
+                    mime_type = "image/png" if img_path.lower().endswith('.png') else "image/jpeg"
+
+                    # Create Part from bytes (this is what the SDK expects)
+                    reference_image = types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type=mime_type
+                    )
+
+                    logger.info(f"  ✓ Loaded reference image: {img_path} ({len(image_bytes)} bytes, {mime_type})")
+
+                except Exception as e:
+                    logger.error(f"  ❌ Failed to load reference image: {str(e)}")
+                    raise ValueError(f"Failed to load reference image: {str(e)}. Video generation aborted.")
+
+            # Generate video with Veo using SDK
+            import asyncio
+
+            if reference_image:
+                logger.info(f"  🎬 Calling Veo API with 1 reference image...")
+                operation = self.client.models.generate_videos(
+                    model=veo_model,
+                    prompt=enhanced_prompt,
+                    image=reference_image,  # Single PIL Image directly
+                    config=types.GenerateVideosConfig(
+                        aspect_ratio=aspect_ratio,
+                    )
+                )
+            else:
+                logger.info("  🎬 Calling Veo API (prompt-only, no reference image)...")
+                operation = self.client.models.generate_videos(
+                    model=veo_model,
+                    prompt=enhanced_prompt,
+                    config=types.GenerateVideosConfig(
+                        aspect_ratio=aspect_ratio,
+                    )
+                )
+
+            logger.info("  ⏳ Polling for video generation completion...")
+
+            # Poll until complete
+            max_attempts = 120  # 10 minutes max (120 * 5s)
+            attempts = 0
+
+            while not operation.done:
+                await asyncio.sleep(5)  # Check every 5 seconds
+                attempts += 1
+
+                # Refresh operation status
+                operation = self.client.operations.get(operation)
+
+                if attempts % 6 == 0:  # Log every 30 seconds
+                    logger.info(f"  ⏳ Still generating... ({attempts * 5}s elapsed)")
+
+                if attempts >= max_attempts:
+                    raise TimeoutError("Video generation timed out after 10 minutes")
+
+            logger.info("  ✅ Video generation complete!")
+
+            # Download the video
+            video = operation.response.generated_videos[0]
+            video_data = self.client.files.download(file=video.video)
+
+            logger.info(f"  ✅ Video downloaded successfully")
+            return video_data
+
+        except Exception as e:
+            logger.error(f"  ❌ Video generation failed: {str(e)}")
+            raise Exception(f"Failed to generate mood video: {str(e)}")

@@ -14,10 +14,12 @@ from fastapi import UploadFile
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 MEDIA_DIR = BASE_DIR / "files" / "media"
 POSTS_DIR = BASE_DIR / "files" / "posts"
+MOODS_DIR = BASE_DIR / "files" / "moods"
 
 # Ensure directories exist
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 POSTS_DIR.mkdir(parents=True, exist_ok=True)
+MOODS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Allowed image extensions
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
@@ -160,4 +162,84 @@ def delete_file(path: str) -> bool:
 
     except Exception as e:
         print(f"Error deleting file {path}: {e}")
+        return False
+
+
+def save_mood_image(image_data: bytes, filename: str) -> str:
+    """
+    Save mood board image to /files/moods/ directory.
+
+    Args:
+        image_data: Image bytes (PNG format)
+        filename: Desired filename (e.g., "Summer2025_img_20250111_143022_1-1.png")
+
+    Returns:
+        Relative path (e.g., "moods/Summer2025_img_20250111_143022_1-1.png")
+    """
+    try:
+        filepath = MOODS_DIR / filename
+
+        with open(filepath, "wb") as f:
+            f.write(image_data)
+
+        return f"moods/{filename}"
+
+    except Exception as e:
+        raise Exception(f"Failed to save mood image: {str(e)}")
+
+
+def save_mood_video(video_data: bytes, filename: str) -> str:
+    """
+    Save mood board video to /files/moods/ directory.
+
+    Args:
+        video_data: Video bytes (MP4 format)
+        filename: Desired filename (e.g., "Summer2025_vid_20250111_143022_16-9.mp4")
+
+    Returns:
+        Relative path (e.g., "moods/Summer2025_vid_20250111_143022_16-9.mp4")
+    """
+    try:
+        filepath = MOODS_DIR / filename
+
+        with open(filepath, "wb") as f:
+            f.write(video_data)
+
+        return f"moods/{filename}"
+
+    except Exception as e:
+        raise Exception(f"Failed to save mood video: {str(e)}")
+
+
+def delete_mood_file(file_path: str) -> bool:
+    """
+    Delete mood media file from filesystem.
+
+    Args:
+        file_path: Relative path (e.g., "moods/Summer2025_img_20250111_143022_1-1.png")
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Handle both formats: "moods/file.png" and "/static/moods/file.png"
+        if file_path.startswith("/static/moods/"):
+            clean_path = file_path.replace("/static/moods/", "")
+        elif file_path.startswith("moods/"):
+            clean_path = file_path.replace("moods/", "")
+        else:
+            clean_path = file_path
+
+        filepath = MOODS_DIR / clean_path
+
+        if filepath.exists():
+            filepath.unlink()
+            print(f"✓ Deleted mood file: {file_path}")
+            return True
+
+        print(f"⚠️ Mood file not found: {file_path}")
+        return False
+
+    except Exception as e:
+        print(f"Error deleting mood file {file_path}: {e}")
         return False
