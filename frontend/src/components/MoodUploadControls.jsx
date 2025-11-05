@@ -68,7 +68,7 @@ function MoodUploadControls({ campaign, onUploaded }) {
   };
 
   return (
-    <div className="border-4 border-black dark:border-white p-4 bg-green-50 dark:bg-green-900/20">
+    <div className="brutalist-card  border-black dark:border-white p-4 bg-green-50 dark:bg-green-900/20">
       <h3 className="text-lg font-bold uppercase mb-4">📤 Manual Upload</h3>
 
       <input
@@ -84,14 +84,17 @@ function MoodUploadControls({ campaign, onUploaded }) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => !uploading && document.getElementById('mood-upload').click()}
+        onClick={() =>
+          !uploading && document.getElementById("mood-upload").click()
+        }
         className={`
           border-4 border-dashed p-6 text-center cursor-pointer transition-colors
-          ${isDragging
-            ? 'border-green-500 bg-green-100 dark:bg-green-900'
-            : 'border-black dark:border-white'
+          ${
+            isDragging
+              ? "border-green-500 bg-green-100 dark:bg-green-900"
+              : "border-black dark:border-white"
           }
-          ${uploading ? 'opacity-50 pointer-events-none' : ''}
+          ${uploading ? "opacity-50 pointer-events-none" : ""}
         `}
       >
         <div className="text-3xl mb-2">📤</div>
@@ -99,7 +102,9 @@ function MoodUploadControls({ campaign, onUploaded }) {
           {uploading ? (
             <span className="font-bold">Uploading...</span>
           ) : isDragging ? (
-            <span className="font-bold text-green-600 dark:text-green-400">Drop files here!</span>
+            <span className="font-bold text-green-600 dark:text-green-400">
+              Drop files here!
+            </span>
           ) : (
             <span>Click or drag & drop images/videos</span>
           )}

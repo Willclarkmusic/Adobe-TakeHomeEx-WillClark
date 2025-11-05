@@ -149,7 +149,9 @@ class PostCreate(BaseModel):
     Schema for creating a new post manually.
     """
     campaign_id: str
-    product_id: str
+    product_id: Optional[str] = None  # Now optional
+    mood_id: Optional[str] = None  # New field
+    source_images: Optional[List[str]] = None  # New field: JSON array of image paths
     headline: str
     body_text: str
     caption: str
@@ -180,7 +182,9 @@ class PostRead(BaseModel):
     """
     id: str
     campaign_id: str
-    product_id: str
+    product_id: Optional[str] = None  # Now optional
+    mood_id: Optional[str] = None  # New field
+    source_images: Optional[str] = None  # New field: JSON string (stored as TEXT in DB)
     headline: str
     body_text: str
     caption: str
@@ -198,10 +202,10 @@ class PostRead(BaseModel):
 class PostGenerateRequest(BaseModel):
     """
     Schema for AI post generation request.
-    User provides product, prompt, and desired aspect ratios.
+    User provides source images (from products or mood board), prompt, and desired aspect ratios.
     """
     campaign_id: str
-    product_id: str
+    source_images: List[str]  # Array of image paths (products or mood board images)
     prompt: str
     aspect_ratios: List[str] = ["1:1"]  # Default to 1:1, can include "16:9", "9:16"
 

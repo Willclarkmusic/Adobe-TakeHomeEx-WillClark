@@ -32,6 +32,28 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
     handleJsonFileSelect
   }));
 
+  // ============ Helper Functions ============
+
+  /**
+   * Normalize image path for preview display.
+   * Handles URLs, /static/ paths, and local file paths.
+   */
+  const getImagePreviewPath = (imagePath) => {
+    if (!imagePath) return imagePath;
+
+    // If already starts with /static/ or http, use as-is
+    if (imagePath.startsWith('/static/') || imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // If looks like a local file path, prefix with / for static serving
+    if (imagePath.includes('/') || imagePath.includes('\\')) {
+      return `/${imagePath}`;  // examples/... → /examples/...
+    }
+
+    return imagePath;
+  };
+
   // ============ Form Population Methods ============
 
   const populateFormFromProduct = () => {
@@ -580,7 +602,7 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
     return (
       <div className="mb-3 border-4 border-black dark:border-white overflow-hidden">
         <img
-          src={formData.image_path}
+          src={getImagePreviewPath(formData.image_path)}
           alt="Preview"
           className="w-full h-48 object-cover"
           onError={(e) => {

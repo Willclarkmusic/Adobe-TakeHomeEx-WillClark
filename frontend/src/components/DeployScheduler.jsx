@@ -29,7 +29,7 @@ function DeployScheduler({ campaign, selectedPlatforms, onPostScheduled }) {
 
   return (
     <>
-      <div className="border-4 border-black dark:border-white p-6 bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900">
+      <div className="brutalist-card dark:border-white p-6 bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900 dark:to-pink-900">
         <h2 className="text-2xl font-bold uppercase mb-4">📅 Scheduler</h2>
 
         {/* Campaign Timeline */}
@@ -39,7 +39,7 @@ function DeployScheduler({ campaign, selectedPlatforms, onPostScheduled }) {
               Start Date
             </div>
             <div className="text-lg font-bold font-mono">
-              {startDate ? startDate.toLocaleDateString() : 'Not Set'}
+              {startDate ? startDate.toLocaleDateString() : "Not Set"}
             </div>
           </div>
 
@@ -48,7 +48,7 @@ function DeployScheduler({ campaign, selectedPlatforms, onPostScheduled }) {
               End Date
             </div>
             <div className="text-lg font-bold font-mono">
-              {endDate ? endDate.toLocaleDateString() : 'Not Set'}
+              {endDate ? endDate.toLocaleDateString() : "Not Set"}
             </div>
           </div>
 
@@ -57,7 +57,7 @@ function DeployScheduler({ campaign, selectedPlatforms, onPostScheduled }) {
               Running Time
             </div>
             <div className="text-lg font-bold font-mono">
-              {duration > 0 ? `${duration} days` : 'Not Set'}
+              {duration > 0 ? `${duration} days` : "Not Set"}
             </div>
             {daysRemaining !== null && daysRemaining >= 0 && (
               <div className="text-xs text-green-600 dark:text-green-400 font-bold mt-1">
@@ -75,7 +75,9 @@ function DeployScheduler({ campaign, selectedPlatforms, onPostScheduled }) {
         {/* Platform Selection Warning */}
         {selectedPlatforms.length === 0 && (
           <div className="mb-4 p-3 border-2 border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
-            <span className="font-bold">⚠️ No platforms selected.</span> Please select platforms in the Campaign Platforms section above before scheduling posts.
+            <span className="font-bold">⚠️ No platforms selected.</span> Please
+            select platforms in the Campaign Platforms section above before
+            scheduling posts.
           </div>
         )}
 
@@ -100,10 +102,12 @@ function DeployScheduler({ campaign, selectedPlatforms, onPostScheduled }) {
 
         <div className="mt-4 text-sm font-mono text-gray-700 dark:text-gray-300">
           <div>
-            <span className="font-bold">📌 Schedule Post:</span> Post a specific post at a specific time, or post immediately.
+            <span className="font-bold">📌 Schedule Post:</span> Post a specific
+            post at a specific time, or post immediately.
           </div>
           <div className="mt-1">
-            <span className="font-bold">🔁 Recurring Posts:</span> Schedule multiple posts to repeat automatically at regular intervals.
+            <span className="font-bold">🔁 Recurring Posts:</span> Schedule
+            multiple posts to repeat automatically at regular intervals.
           </div>
         </div>
       </div>

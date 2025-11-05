@@ -74,8 +74,10 @@ function DeployCampaignSetup({
   };
 
   return (
-    <div className="border-4 border-black dark:border-white p-6 bg-white dark:bg-gray-800">
-      <h2 className="text-2xl font-bold uppercase mb-4">🎯 Campaign Platforms</h2>
+    <div className="brutalist-card border-black dark:border-white p-6 bg-white dark:bg-gray-800">
+      <h2 className="text-2xl font-bold uppercase mb-4">
+        🎯 Campaign Platforms
+      </h2>
 
       <div className="mb-4">
         <p className="font-mono text-sm mb-2">
@@ -107,7 +109,7 @@ function DeployCampaignSetup({
         {ALL_PLATFORMS.map((platform) => {
           const isConnected = connectedPlatformKeys.includes(platform.key);
           const isSelected = selectedPlatforms.includes(platform.key);
-          const icon = PLATFORM_ICONS[platform.key] || '📱';
+          const icon = PLATFORM_ICONS[platform.key] || "📱";
 
           return (
             <label
@@ -115,11 +117,11 @@ function DeployCampaignSetup({
               className={`border-3 border-black dark:border-white p-3 cursor-pointer transition-colors ${
                 isSelected
                   ? isConnected
-                    ? 'bg-green-200 dark:bg-green-800'
-                    : 'bg-yellow-200 dark:bg-yellow-800'
+                    ? "bg-green-200 dark:bg-green-800"
+                    : "bg-yellow-200 dark:bg-yellow-800"
                   : isConnected
-                  ? 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                  ? "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  : "bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -153,28 +155,31 @@ function DeployCampaignSetup({
           </div>
           <div className="flex gap-2 flex-wrap">
             {selectedPlatforms.map((key) => {
-              const platform = ALL_PLATFORMS.find(p => p.key === key);
+              const platform = ALL_PLATFORMS.find((p) => p.key === key);
               const isConnected = connectedPlatformKeys.includes(key);
-              const icon = PLATFORM_ICONS[key] || '📱';
+              const icon = PLATFORM_ICONS[key] || "📱";
 
               return (
                 <span
                   key={key}
                   className={`px-2 py-1 border-2 border-black dark:border-white text-xs font-bold ${
                     isConnected
-                      ? 'bg-green-300 dark:bg-green-700'
-                      : 'bg-yellow-300 dark:bg-yellow-700'
+                      ? "bg-green-300 dark:bg-green-700"
+                      : "bg-yellow-300 dark:bg-yellow-700"
                   }`}
                 >
                   {icon} {platform?.name || key}
-                  {!isConnected && ' ⚠️'}
+                  {!isConnected && " ⚠️"}
                 </span>
               );
             })}
           </div>
-          {selectedPlatforms.some(key => !connectedPlatformKeys.includes(key)) && (
+          {selectedPlatforms.some(
+            (key) => !connectedPlatformKeys.includes(key)
+          ) && (
             <div className="mt-2 text-xs font-mono text-yellow-700 dark:text-yellow-300">
-              ⚠️ Warning: Some selected platforms are not connected. Posts to these platforms will fail.
+              ⚠️ Warning: Some selected platforms are not connected. Posts to
+              these platforms will fail.
             </div>
           )}
         </div>

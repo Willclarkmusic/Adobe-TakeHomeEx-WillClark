@@ -137,8 +137,10 @@ function MoodBoardPage({ selectedCampaign }) {
         {selectedCampaign && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             {/* Left: 4 Generation Buttons */}
-            <div className="border-4 border-black dark:border-white p-4 bg-purple-50 dark:bg-purple-900/20">
-              <h3 className="text-sm font-bold uppercase mb-3">AI Generation</h3>
+            <div className="brutalist-card  border-black dark:border-white p-4 bg-purple-50 dark:bg-purple-900/20">
+              <h3 className="text-sm font-bold uppercase mb-3">
+                AI Generation
+              </h3>
               <div className="grid grid-cols-2 gap-2">
                 {/* Image Controls */}
                 <button
@@ -205,16 +207,20 @@ function MoodBoardPage({ selectedCampaign }) {
                 <strong>Total:</strong> {moodMedia.length}
               </span>
               <span>
-                <strong>Images:</strong> {moodMedia.filter(m => m.media_type === 'image').length}
+                <strong>Images:</strong>{" "}
+                {moodMedia.filter((m) => m.media_type === "image").length}
               </span>
               <span>
-                <strong>Videos:</strong> {moodMedia.filter(m => m.media_type === 'video').length}
+                <strong>Videos:</strong>{" "}
+                {moodMedia.filter((m) => m.media_type === "video").length}
               </span>
               <span>
-                <strong>AI Generated:</strong> {moodMedia.filter(m => m.is_generated).length}
+                <strong>AI Generated:</strong>{" "}
+                {moodMedia.filter((m) => m.is_generated).length}
               </span>
               <span>
-                <strong>Uploaded:</strong> {moodMedia.filter(m => !m.is_generated).length}
+                <strong>Uploaded:</strong>{" "}
+                {moodMedia.filter((m) => !m.is_generated).length}
               </span>
             </div>
           </div>

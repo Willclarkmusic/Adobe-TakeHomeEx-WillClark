@@ -100,8 +100,10 @@ function DeployPage({ selectedCampaign }) {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
       {/* Page Header */}
-      <div className="border-4 border-black dark:border-white p-6 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900">
-        <h1 className="text-3xl font-bold uppercase">📱 Deploy to Social Media</h1>
+      <div className="brutalist-card  border-black dark:border-white p-6 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900">
+        <h1 className="text-3xl font-bold uppercase">
+          📱 Deploy to Social Media
+        </h1>
         <p className="font-mono text-sm mt-2">
           Campaign: <span className="font-bold">{selectedCampaign.name}</span>
         </p>
@@ -130,8 +132,10 @@ function DeployPage({ selectedCampaign }) {
       />
 
       {/* Section 4: Scheduled Posts Grid */}
-      <div className="border-4 border-black dark:border-white p-6 bg-white dark:bg-gray-800">
-        <h2 className="text-2xl font-bold uppercase mb-4">📅 Scheduled Posts</h2>
+      <div className="brutalist-card  dark:border-white p-6 bg-white dark:bg-gray-800">
+        <h2 className="text-2xl font-bold uppercase mb-4">
+          📅 Scheduled Posts
+        </h2>
 
         {loadingScheduledPosts ? (
           <div className="text-center py-8">

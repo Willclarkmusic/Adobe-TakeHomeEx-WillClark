@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import MoodPopup from "./MoodPopup";
 
 /**
  * PostGenerateForm Component - Form for AI post generation
- * Allows user to select product, enter prompt, and choose aspect ratios
+ * Allows user to select source images (products or mood board), enter prompt, and choose aspect ratios
  */
 function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
-  const [products, setProducts] = useState([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [showImagePopup, setShowImagePopup] = useState(false);
 
   const [formData, setFormData] = useState({
-    product_id: "",
     prompt: "",
     aspect_ratios: ["1:1"] // Default to 1:1
   });
@@ -17,42 +17,13 @@ function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch products for the campaign
-  useEffect(() => {
-    if (campaignId) {
-      fetchProducts();
-    }
-  }, [campaignId]);
-
-  const fetchProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      const response = await fetch(`/api/products?campaign_id=${campaignId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch products");
-      }
-      const data = await response.json();
-      setProducts(data);
-
-      // Auto-select first product if available
-      if (data.length > 0) {
-        setFormData(prev => ({ ...prev, product_id: data[0].id }));
-      }
-    } catch (err) {
-      console.error("Error fetching products:", err);
-      setError("Failed to load products");
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     // Validation
-    if (!formData.product_id) {
-      setError("Please select a product");
+    if (selectedImages.length === 0) {
+      setError("Please select at least one source image");
       return;
     }
     if (!formData.prompt.trim()) {
@@ -72,7 +43,7 @@ function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           campaign_id: campaignId,
-          product_id: formData.product_id,
+          source_images: selectedImages,  // Array of image paths
           prompt: formData.prompt,
           aspect_ratios: formData.aspect_ratios
         })
@@ -87,8 +58,8 @@ function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
       onGenerate(generatedPost);
 
       // Reset form
+      setSelectedImages([]);
       setFormData({
-        product_id: products.length > 0 ? products[0].id : "",
         prompt: "",
         aspect_ratios: ["1:1"]
       });
@@ -109,48 +80,60 @@ function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
     });
   };
 
-  if (loadingProducts) {
-    return (
-      <div className="brutalist-card">
-        <p className="font-mono text-lg uppercase">Loading products...</p>
-      </div>
-    );
-  }
-
-  if (products.length === 0) {
-    return (
-      <div className="brutalist-card bg-yellow-50 dark:bg-yellow-900/20">
-        <h3 className="text-xl font-bold uppercase mb-3">⚠️ No Products Available</h3>
-        <p className="font-mono text-sm">
-          You need to add at least one product to this campaign before generating posts.
-          Go to the Campaign tab to add products.
-        </p>
-        <button onClick={onCancel} className="brutalist-button mt-4">
-          Cancel
-        </button>
-      </div>
-    );
-  }
+  const handleImageSelection = (images) => {
+    setSelectedImages(images);
+    setShowImagePopup(false);
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Product Selector */}
+      {/* Image Selector */}
       <div>
         <label className="block text-lg font-bold uppercase mb-2">
-          Select Product
+          Source Images {selectedImages.length > 0 && `(${selectedImages.length} selected)`}
         </label>
-        <select
-          value={formData.product_id}
-          onChange={(e) => setFormData(prev => ({ ...prev, product_id: e.target.value }))}
-          className="brutalist-select w-full"
+        <button
+          type="button"
+          onClick={() => setShowImagePopup(true)}
+          className="brutalist-button bg-purple-400 dark:bg-purple-600 mb-3"
           disabled={generating}
         >
-          {products.map(product => (
-            <option key={product.id} value={product.id}>
-              {product.name}
-            </option>
-          ))}
-        </select>
+          📸 Select Images (Products or Mood Board)
+        </button>
+
+        {/* Selected Images Preview */}
+        {selectedImages.length > 0 && (
+          <div className="border-3 border-black dark:border-white p-3 bg-gray-50 dark:bg-gray-800">
+            <div className="text-sm font-bold uppercase mb-2">Selected Images:</div>
+            <div className="flex flex-wrap gap-2">
+              {selectedImages.map((imgPath, index) => (
+                <div
+                  key={index}
+                  className="relative w-20 h-20 border-2 border-black dark:border-white overflow-hidden"
+                >
+                  <img
+                    src={imgPath.startsWith('/static/') ? imgPath : `/static/${imgPath}`}
+                    alt={`Selected ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImages(selectedImages.filter((_, i) => i !== index))}
+                    className="absolute top-0 right-0 bg-red-500 text-white text-xs px-1 font-bold hover:bg-red-700"
+                    disabled={generating}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs font-mono text-gray-600 dark:text-gray-400 mt-2">
+              {selectedImages.length === 1
+                ? "📷 Single image: Will use image transformation (img2img)"
+                : `🎨 ${selectedImages.length} images: Will create composition/blend`}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Prompt Textarea */}
@@ -231,6 +214,11 @@ function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
           <p className="font-mono text-sm mt-2 text-gray-600 dark:text-gray-400">
             AI is writing copy and compositing images for {formData.aspect_ratios.length} aspect ratio(s)...
           </p>
+          <p className="font-mono text-xs mt-2 text-gray-500 dark:text-gray-500">
+            {selectedImages.length === 1
+              ? "Using image transformation (img2img)"
+              : `Creating composition from ${selectedImages.length} images`}
+          </p>
         </div>
       )}
 
@@ -252,6 +240,20 @@ function PostGenerateForm({ campaignId, onGenerate, onCancel }) {
           Cancel
         </button>
       </div>
+
+      {/* Image Selection Popup */}
+      {showImagePopup && (
+        <MoodPopup
+          campaignId={campaignId}
+          selectedImages={selectedImages}
+          onCancel={() => setShowImagePopup(false)}
+          onSelect={handleImageSelection}
+          apiEndpoint="/api/posts/available-images"  // Use posts endpoint instead of moods
+          maxImages={null}  // No limit on number of images
+          title="Select Source Images"
+          description="Choose images from products or mood board to generate your post"
+        />
+      )}
     </form>
   );
 }

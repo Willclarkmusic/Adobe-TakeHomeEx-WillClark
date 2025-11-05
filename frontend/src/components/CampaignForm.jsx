@@ -32,6 +32,28 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
     handleJsonFileSelect
   }));
 
+  // ============ Helper Functions ============
+
+  /**
+   * Normalize image path for preview display.
+   * Handles URLs, /static/ paths, and local file paths.
+   */
+  const getImagePreviewPath = (imagePath) => {
+    if (!imagePath) return imagePath;
+
+    // If already starts with /static/ or http, use as-is
+    if (imagePath.startsWith('/static/') || imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // If looks like a local file path, prefix with / for static serving
+    if (imagePath.includes('/') || imagePath.includes('\\')) {
+      return `/${imagePath}`;  // examples/... → /examples/...
+    }
+
+    return imagePath;
+  };
+
   // ============ Form Population Methods ============
 
   const populateFormFromCampaign = () => {
@@ -543,7 +565,7 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
             {formData.brand_images.map((image, index) => (
               <div key={index} className="relative border-4 border-black dark:border-white overflow-hidden bg-gray-100 dark:bg-gray-800">
                 <img
-                  src={image}
+                  src={getImagePreviewPath(image)}
                   alt={`Brand Image ${index + 1}`}
                   className="w-full h-40 object-cover"
                   onError={(e) => {
@@ -694,7 +716,7 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
       <div key={index} className="border-3 border-black dark:border-white bg-white dark:bg-gray-800 p-3">
         {product.image_path && (
           <img
-            src={product.image_path}
+            src={getImagePreviewPath(product.image_path)}
             alt={product.name}
             className="w-full h-32 object-cover border-3 border-black dark:border-white mb-2"
             onError={(e) => {

@@ -54,6 +54,14 @@ if FILES_DIR.exists():
 else:
     print(f"⚠️  Warning: Static files directory not found at {FILES_DIR}")
 
+# Mount examples directory for JSON campaign previews
+EXAMPLES_DIR = BASE_DIR / "examples"
+if EXAMPLES_DIR.exists():
+    app.mount("/examples", StaticFiles(directory=str(EXAMPLES_DIR)), name="examples")
+    print(f"✅ Examples directory mounted from: {EXAMPLES_DIR}")
+else:
+    print(f"⚠️  Warning: Examples directory not found at {EXAMPLES_DIR}")
+
 
 @app.on_event("startup")
 async def startup_event():

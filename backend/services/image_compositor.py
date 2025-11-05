@@ -42,7 +42,7 @@ class ImageCompositor:
         self,
         aspect_ratio: str,
         generated_image: Optional[Image.Image],
-        brand_images: List[str],
+        brand_logo: Optional[str],
         campaign_name: str,
         post_headline: str,
         output_filename: str
@@ -53,7 +53,7 @@ class ImageCompositor:
         Args:
             aspect_ratio: One of "1:1", "16:9", "9:16"
             generated_image: PIL Image from Gemini (already has text on it)
-            brand_images: List of paths to brand images
+            brand_logo: Path to brand logo image (randomly selected by caller)
             campaign_name: Campaign name for folder organization
             post_headline: Post headline for folder naming
             output_filename: Filename for the output image (e.g., "image_1-1.png")
@@ -86,12 +86,12 @@ class ImageCompositor:
             canvas = Image.new('RGB', (canvas_width, canvas_height), color='white')
 
         # Add brand logo overlay
-        if brand_images:
-            logger.info(f"      🏷️  Adding brand logo overlay from: {brand_images[0]}")
-            canvas = await self._add_brand_overlay(canvas, brand_images[0], aspect_ratio)
+        if brand_logo:
+            logger.info(f"      🏷️  Adding brand logo overlay from: {brand_logo}")
+            canvas = await self._add_brand_overlay(canvas, brand_logo, aspect_ratio)
             logger.info(f"      ✅ Brand logo added")
         else:
-            logger.info(f"      ⚠️  No brand images provided")
+            logger.info(f"      ⚠️  No brand logo provided")
 
         # Add border for neo-brutalist aesthetic
         canvas = self._add_border(canvas)

@@ -49,7 +49,7 @@ function MoodMasonryGallery({ moodMedia, onDelete, onRefresh }) {
     <div className="max-w-7xl mx-auto relative">
       {/* Empty State */}
       {displayMedia.length === 0 && (
-        <div className="text-center py-20 border-4 border-dashed border-black dark:border-white">
+        <div className="text-center py-20 border-2 border-dashed border-black dark:border-white">
           <p className="text-2xl font-bold mb-2">🎨 No mood media yet</p>
           <p className="text-gray-600 dark:text-gray-400">
             Generate images/videos or upload files to get started
@@ -64,23 +64,23 @@ function MoodMasonryGallery({ moodMedia, onDelete, onRefresh }) {
           className="flex -ml-4 w-auto"
           columnClassName="pl-4 bg-clip-padding"
         >
-          {displayMedia.map(media => (
+          {displayMedia.map((media) => (
             <div
               key={media.id}
               className="mb-4 relative group cursor-pointer"
               onClick={() => setSelectedMedia(media)}
             >
-              {media.media_type === 'image' ? (
+              {media.media_type === "image" ? (
                 <img
                   src={`/static/${media.file_path}`}
                   alt="Mood"
-                  className="w-full border-4 border-black dark:border-white transition-transform hover:scale-[1.02] hover:shadow-lg"
+                  className="w-full border-2 border-black dark:border-white transition-transform hover:scale-[1.02] hover:shadow-lg"
                 />
               ) : (
                 <div className="relative">
                   <video
                     src={`/static/${media.file_path}`}
-                    className="w-full border-4 border-black dark:border-white"
+                    className="w-full border-2 border-black dark:border-white"
                     preload="metadata"
                   />
                   {/* Play icon overlay */}

@@ -54,14 +54,17 @@ class Post(Base):
     """
     Post model representing an AI-generated social media post.
 
-    Links to both a campaign and a product. Stores generated text content
-    (headline, body, caption) and paths to generated images for multiple aspect ratios.
+    Can be generated from product images, mood board images, or both.
+    Stores generated text content (headline, body, caption) and paths to
+    generated images for multiple aspect ratios.
     """
     __tablename__ = "posts"
 
     id = Column(String, primary_key=True, index=True)
     campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
-    product_id = Column(String, ForeignKey("products.id"), nullable=False, index=True)
+    product_id = Column(String, ForeignKey("products.id"), nullable=True, index=True)  # Now nullable
+    mood_id = Column(String, ForeignKey("moods_media.id"), nullable=True, index=True)  # New field
+    source_images = Column(Text, nullable=True)  # JSON array of image paths used for generation
     headline = Column(Text, nullable=False)
     body_text = Column(Text, nullable=False)
     caption = Column(Text, nullable=False)
@@ -74,7 +77,8 @@ class Post(Base):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="posts")
-    product = relationship("Product", back_populates="posts")
+    product = relationship("Product", back_populates="posts")  # Now nullable
+    mood_media = relationship("MoodMedia")  # New relationship
 
 
 class MoodMedia(Base):

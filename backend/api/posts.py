@@ -11,8 +11,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
-from models.orm import Post, Campaign, Product
-from models.pydantic import PostCreate, PostUpdate, PostRead, PostGenerateRequest, PostRegenerateRequest
+from models.orm import Post, Campaign, Product, MoodMedia
+from models.pydantic import (
+    PostCreate, PostUpdate, PostRead, PostGenerateRequest, PostRegenerateRequest,
+    MoodAvailableImagesResponse, ProductRead, MoodMediaRead
+)
 from services.gemini_service import GeminiService
 from services.image_compositor import ImageCompositor
 
@@ -50,6 +53,41 @@ async def get_posts(campaign_id: Optional[str] = None, db: Session = Depends(get
 
     posts = query.order_by(Post.created_at.desc()).all()
     return posts
+
+
+@router.get("/posts/available-images", response_model=MoodAvailableImagesResponse)
+async def get_available_images(campaign_id: str, db: Session = Depends(get_db)):
+    """
+    Get available images for post generation (products + mood board images).
+
+    Used by PostGenerateForm to show selectable source images.
+
+    Args:
+        campaign_id: Campaign ID
+        db: Database session
+
+    Returns:
+        MoodAvailableImagesResponse with products and mood_images lists
+    """
+    logger.info(f"📷 Fetching available images for post generation (campaign {campaign_id})")
+
+    # Get products for this campaign
+    products = db.query(Product)\
+        .filter(Product.campaign_id == campaign_id)\
+        .all()
+
+    # Get existing mood images (exclude videos)
+    mood_images = db.query(MoodMedia)\
+        .filter(MoodMedia.campaign_id == campaign_id)\
+        .filter(MoodMedia.media_type == "image")\
+        .all()
+
+    logger.info(f"  ✓ Found {len(products)} products, {len(mood_images)} mood images")
+
+    return {
+        "products": [ProductRead.from_orm(p) for p in products],
+        "mood_images": [MoodMediaRead.from_orm(m) for m in mood_images]
+    }
 
 
 @router.get("/posts/{post_id}", response_model=PostRead)
@@ -104,14 +142,17 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
     """
     Generate a post using AI (Gemini for text and images).
 
-    This is the main endpoint that orchestrates:
-    1. Fetch campaign and product data
+    This endpoint orchestrates:
+    1. Fetch campaign and source image data (products or mood images)
     2. Generate text content using Gemini
-    3. Generate stylized images with text using Gemini (img2img)
-    4. Add logo overlay and border to images
-    5. Save post to database
+    3. Generate stylized images:
+       - Single image: img2img transformation
+       - Multiple images: Composition/blend
+    4. Add random logo overlay and border to images
+    5. Save post to database with source tracking
     """
-    logger.info(f"🚀 Starting post generation for campaign: {request.campaign_id}, product: {request.product_id}")
+    logger.info(f"🚀 Starting post generation for campaign: {request.campaign_id}")
+    logger.info(f"   📸 Source images: {request.source_images}")
 
     # 1. Fetch campaign data
     logger.info("📂 Step 1: Fetching campaign data...")
@@ -121,25 +162,73 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail="Campaign not found")
     logger.info(f"✅ Campaign found: {campaign.name}")
 
-    # 2. Fetch product data
-    logger.info("📦 Step 2: Fetching product data...")
-    product = db.query(Product).filter(Product.id == request.product_id).first()
-    if not product:
-        logger.error(f"❌ Product not found: {request.product_id}")
-        raise HTTPException(status_code=404, detail="Product not found")
-    logger.info(f"✅ Product found: {product.name}")
+    # 2. Load source images and determine their origins
+    logger.info(f"📦 Step 2: Loading {len(request.source_images)} source image(s)...")
+    from PIL import Image as PILImage
+    from pathlib import Path
+    import random
+
+    files_dir = Path(__file__).resolve().parent.parent.parent / "files"
+    source_pil_images = []
+    product_id = None  # Track if source is from a product
+    mood_id = None  # Track if source is from mood board
+
+    for img_path in request.source_images:
+        # img_path format:
+        # - Products: "/static/media/upload_xxx.png" (includes /static/)
+        # - Moods: "moods/xxx.png" (no /static/)
+
+        # Determine if this is a product or mood image and query DB
+        if img_path.startswith("/static/media/"):
+            # Product image - query with exact path (includes /static/)
+            product = db.query(Product).filter(Product.image_path == img_path).first()
+            if product and not product_id:
+                product_id = product.id  # Store first product ID
+        elif img_path.startswith("moods/"):
+            # Mood image - query with exact path (no /static/)
+            mood = db.query(MoodMedia).filter(MoodMedia.file_path == img_path).first()
+            if mood and not mood_id:
+                mood_id = mood.id  # Store first mood ID
+
+        # For loading from filesystem, strip /static/ prefix if present
+        clean_path = img_path.lstrip('/').lstrip('static/')
+        img_full_path = files_dir / clean_path
+
+        if img_full_path.exists():
+            pil_img = PILImage.open(img_full_path)
+            source_pil_images.append(pil_img)
+            logger.info(f"   ✅ Loaded: {clean_path} ({pil_img.size})")
+        else:
+            logger.error(f"   ❌ Image not found: {clean_path}")
+            raise HTTPException(status_code=404, detail=f"Source image not found: {clean_path}")
+
+    if not source_pil_images:
+        raise HTTPException(status_code=400, detail="No valid source images provided")
+
+    logger.info(f"✅ Loaded {len(source_pil_images)} source image(s)")
+    logger.info(f"   📍 product_id: {product_id}, mood_id: {mood_id}")
 
     try:
         # 3. Generate text content using Gemini
         logger.info("🤖 Step 3: Generating text content with Gemini 2.5 Flash...")
         gemini_service = GeminiService()
+
+        # Get product info if available, otherwise use generic description
+        product_name = None
+        product_description = None
+        if product_id:
+            product = db.query(Product).filter(Product.id == product_id).first()
+            if product:
+                product_name = product.name
+                product_description = product.description
+
         text_content = await gemini_service.generate_post_copy(
             campaign_message=campaign.campaign_message,
             call_to_action=campaign.call_to_action,
             target_region=campaign.target_region,
             target_audience=campaign.target_audience,
-            product_name=product.name,
-            product_description=product.description,
+            product_name=product_name or "Featured content",
+            product_description=product_description or "Creative visual content for your campaign",
             user_prompt=request.prompt
         )
 
@@ -155,24 +244,17 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         # 4. Generate images for selected aspect ratios using Gemini + compositing
         logger.info(f"🖼️  Step 4: Generating images for {len(request.aspect_ratios)} aspect ratio(s)...")
 
-        # Load product image for Gemini img2img generation
-        if product.image_path:
-            logger.info(f"   📦 Loading product image: {product.image_path}")
-            from PIL import Image as PILImage
-            from pathlib import Path
-
-            # Load the product image
-            files_dir = Path(__file__).resolve().parent.parent.parent / "files"
-            product_img_path = files_dir / product.image_path.lstrip('/static/')
-            product_pil_image = PILImage.open(product_img_path)
-            logger.info(f"   ✅ Product image loaded: {product_pil_image.size}")
-        else:
-            product_pil_image = None
-            logger.info(f"   ⚠️  No product image available")
-
+        # RANDOM LOGO SELECTION - Pick once, use for all aspect ratios
         image_compositor = ImageCompositor()
         brand_images = json.loads(campaign.brand_images) if campaign.brand_images else []
-        logger.info(f"   Brand images loaded: {len(brand_images)} image(s)")
+        selected_brand_logo = random.choice(brand_images) if brand_images else None
+
+        if selected_brand_logo:
+            logger.info(f"   🎲 Randomly selected brand logo: {selected_brand_logo}")
+        else:
+            logger.info(f"   ⚠️  No brand images available for logo overlay")
+
+        logger.info(f"   📸 Will generate from {len(source_pil_images)} source image(s)")
 
         image_paths = {}
         aspect_ratio_map = {
@@ -180,6 +262,10 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
             "16:9": "16-9",
             "9:16": "9-16"
         }
+
+        # Determine generation strategy: Single image = img2img, Multiple = composition
+        use_composition = len(source_pil_images) > 1
+        logger.info(f"   🎯 Strategy: {'Composition' if use_composition else 'Image Transformation (img2img)'}")
 
         # Track the first generated image for consistency across aspect ratios
         base_generated_image = None
@@ -194,44 +280,56 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
 
             logger.info(f"   🎨 Processing {aspect_ratio} image...")
 
-            # Step 4a: Generate or adapt the image
-            if product_pil_image:
-                if first_aspect_ratio:
-                    # First ratio: Generate from product image (img2img)
-                    logger.info(f"      🤖 Step 4a: Generating base image with Gemini from product...")
+            # Step 4a: Generate image with Gemini
+            if first_aspect_ratio:
+                if use_composition:
+                    # COMPOSITION: Blend multiple source images
+                    # generate_mood_image returns bytes, convert to PIL Image
+                    logger.info(f"      🎨 Step 4a: Composing {len(request.source_images)} images with Gemini...")
+                    image_bytes = await gemini_service.generate_mood_image(
+                        source_images=request.source_images,  # Pass paths as strings
+                        prompt=f"{campaign.campaign_message}. {request.prompt}. Headline: {headline}",
+                        aspect_ratio=aspect_ratio
+                    )
+                    # Convert bytes to PIL Image
+                    from io import BytesIO
+                    generated_image = PILImage.open(BytesIO(image_bytes))
+                    logger.info(f"      ✅ Composition generated!")
+                else:
+                    # IMG2IMG: Transform single source image
+                    # generate_product_image returns PIL Image directly
+                    logger.info(f"      🤖 Step 4a: Transforming source image with Gemini...")
                     generated_image = await gemini_service.generate_product_image(
-                        product_image=product_pil_image,
+                        product_image=source_pil_images[0],  # Pass PIL object
                         campaign_message=campaign.campaign_message,
                         headline=headline,
                         user_prompt=request.prompt,
                         aspect_ratio=aspect_ratio
                     )
-                    base_generated_image = generated_image
-                    first_aspect_ratio = False
-                    logger.info(f"      ✅ Base image generated! This will be adapted for other ratios.")
-                else:
-                    # Subsequent ratios: Adapt the base image to new aspect ratio
-                    logger.info(f"      🔄 Step 4a: Adapting base image to {aspect_ratio}...")
-                    generated_image = await gemini_service.generate_product_image_adaptation(
-                        base_image=base_generated_image,
-                        headline=headline,
-                        new_aspect_ratio=aspect_ratio
-                    )
-                    logger.info(f"      ✅ Image adapted from base image!")
+                    logger.info(f"      ✅ Image transformed!")
+
+                base_generated_image = generated_image
+                first_aspect_ratio = False
             else:
-                generated_image = None
-                logger.info("      ⚠️  Skipping Gemini generation (no product image)")
+                # Subsequent ratios: Adapt the base image to new aspect ratio
+                logger.info(f"      🔄 Step 4a: Adapting base image to {aspect_ratio}...")
+                generated_image = await gemini_service.generate_product_image_adaptation(
+                    base_image=base_generated_image,
+                    headline=headline,
+                    new_aspect_ratio=aspect_ratio
+                )
+                logger.info(f"      ✅ Image adapted!")
 
             filename_ratio = aspect_ratio_map[aspect_ratio]
             output_filename = f"image_{filename_ratio}.png"
 
             # Step 4b: Composite logo and border onto Gemini image
-            logger.info("      🖼️  Step 4b: Adding logo and border to Gemini image...")
+            logger.info(f"      🖼️  Step 4b: Adding logo {'('+selected_brand_logo+')' if selected_brand_logo else ''} and border...")
 
             image_path = await image_compositor.create_post_image(
                 aspect_ratio=aspect_ratio,
                 generated_image=generated_image,  # Gemini image already has text
-                brand_images=brand_images,
+                brand_logo=selected_brand_logo,  # Pass single selected logo instead of array
                 campaign_name=campaign.name,
                 post_headline=headline,
                 output_filename=output_filename
@@ -246,7 +344,9 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         db_post = Post(
             id=post_id,
             campaign_id=request.campaign_id,
-            product_id=request.product_id,
+            product_id=product_id,  # Can be None if source was mood board images
+            mood_id=mood_id,  # Can be None if source was product images
+            source_images=json.dumps(request.source_images),  # Store as JSON string
             headline=headline,
             body_text=body_text,
             caption=caption,

@@ -11,7 +11,10 @@ function MoodPopup({
   onCancel,
   maxSizeMB = 17,
   maxImages = null,  // null = unlimited, or specify max count
-  selectedImages: initialSelected = []
+  selectedImages: initialSelected = [],
+  apiEndpoint = '/api/moods/available-images',  // Customizable endpoint
+  title = 'Select Source Images',  // Customizable title
+  description = null  // Optional description (currently unused but accepted)
 }) {
   const [products, setProducts] = useState([]);
   const [moodImages, setMoodImages] = useState([]);
@@ -28,7 +31,7 @@ function MoodPopup({
 
   const fetchAvailableImages = async () => {
     try {
-      const res = await fetch(`/api/moods/available-images?campaign_id=${campaignId}`);
+      const res = await fetch(`${apiEndpoint}?campaign_id=${campaignId}`);
       const data = await res.json();
       setProducts(data.products || []);
       setMoodImages(data.mood_images || []);
@@ -71,7 +74,7 @@ function MoodPopup({
       <div className="bg-white dark:bg-gray-900 border-4 border-black dark:border-white max-w-4xl w-full max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="p-4 border-b-4 border-black dark:border-white bg-gray-50 dark:bg-gray-800">
-          <h2 className="font-bold text-xl uppercase mb-2">Select Source Images</h2>
+          <h2 className="font-bold text-xl uppercase mb-2">{title}</h2>
           <div className="flex gap-4 text-sm font-mono">
             <span className="font-bold">{selectedCount} selected</span>
             <span className={isOverLimit ? 'text-red-500 font-bold' : ''}>

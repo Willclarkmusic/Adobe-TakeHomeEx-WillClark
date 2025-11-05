@@ -1,6 +1,26 @@
 import React, { useState } from 'react';
 
 /**
+ * Normalize image path for preview display.
+ * Handles URLs, /static/ paths, and local file paths.
+ */
+const getImagePreviewPath = (imagePath) => {
+  if (!imagePath) return imagePath;
+
+  // If already starts with /static/ or http, use as-is
+  if (imagePath.startsWith('/static/') || imagePath.startsWith('http')) {
+    return imagePath;
+  }
+
+  // If looks like a local file path, prefix with / for static serving
+  if (imagePath.includes('/') || imagePath.includes('\\')) {
+    return `/${imagePath}`;  // examples/... → /examples/...
+  }
+
+  return imagePath;
+};
+
+/**
  * ProductBatchPreview Component
  *
  * Displays a grid of products for batch approval/rejection before creation.
@@ -130,7 +150,7 @@ function ProductBatchPreview({ products, validationResults, onConfirm, onCancel 
               {product.image_path && (
                 <div className="mb-3 border-2 border-black dark:border-white overflow-hidden h-32">
                   <img
-                    src={product.image_path}
+                    src={getImagePreviewPath(product.image_path)}
                     alt={product.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
