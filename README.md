@@ -1,6 +1,7 @@
 # Creative Automation Hub - Full-Featured Platform
 
 A complete full-stack Creative Automation Platform with AI-powered content generation, mood board creation, and social media scheduling. Built with FastAPI backend (SQLite + SQLAlchemy) and React frontend (Vite + Tailwind CSS).
+[Google Slides Presentation](https://docs.google.com/presentation/d/1EP0X0cgXCdmBxwkHgkhmVmCbU-whhIaQbC3UEaeoV1U/edit?usp=sharing)
 
 ## 🏗️ Project Structure
 
