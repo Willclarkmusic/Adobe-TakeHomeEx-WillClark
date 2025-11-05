@@ -3,8 +3,31 @@
 ## Prerequisites
 - Python 3.8+ installed
 - Node.js 16+ and npm installed
+- **Google Gemini API Key** (required for AI features)
 
-## Step 1: Backend Setup (Terminal 1)
+## Step 1: Environment Setup
+
+**Configure API Keys:**
+
+1. **Copy the example environment file:**
+   ```bash
+   cd backend
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` file and add your API keys:**
+   ```bash
+   # Required: Google Gemini API Key for AI post generation
+   GEMINI_API_KEY=your_gemini_api_key_here
+
+   # Optional: Ayrshare API Key for social media posting
+   AYRSHARE_API_KEY=your_ayrshare_api_key_here
+   ```
+
+   - **Get Gemini API Key:** [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - **Get Ayrshare API Key (Optional):** [Ayrshare Dashboard](https://app.ayrshare.com/)
+
+## Step 2: Backend Setup (Terminal 1)
 
 ```bash
 # Navigate to backend directory
@@ -32,7 +55,7 @@ uvicorn main:app --reload
 - API Documentation: http://localhost:8000/docs
 - Test the API: http://localhost:8000/api/campaigns
 
-## Step 2: Frontend Setup (Terminal 2)
+## Step 3: Frontend Setup (Terminal 2)
 
 ```bash
 # Navigate to frontend directory

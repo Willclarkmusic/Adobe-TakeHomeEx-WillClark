@@ -549,6 +549,92 @@ Generate a visually stunning mood board image that captures this creative direct
             logger.error(f"  ❌ Mood image generation failed: {str(e)}")
             raise Exception(f"Failed to generate mood image: {str(e)}")
 
+    async def generate_product_image_from_text(
+        self,
+        product_name: str,
+        product_description: Optional[str] = None,
+        user_prompt: Optional[str] = None
+    ) -> Image.Image:
+        """
+        Generate a product image from text description using img2img transformation.
+
+        Since Gemini Flash Image doesn't support pure text-to-image, this method:
+        1. Creates a neutral gray base template (1080x1080)
+        2. Uses img2img to transform it into a professional product photo
+
+        Args:
+            product_name: Name of the product to generate
+            product_description: Optional description for more context
+            user_prompt: Optional style/mood guidance
+
+        Returns:
+            PIL Image of the generated product (1080x1080)
+
+        Raises:
+            Exception: If image generation fails
+        """
+        logger.info(f"🎨 Generating product image from text: {product_name}")
+        logger.info(f"   📝 Description: {product_description or 'None'}")
+        logger.info(f"   🎭 Style prompt: {user_prompt or 'None'}")
+
+        try:
+            # Step 1: Create neutral base template
+            base_size = (1080, 1080)
+            base_color = '#f5f5f5'  # Light gray background
+            base_template = Image.new('RGB', base_size, color=base_color)
+            logger.info(f"   ✓ Created base template: {base_size}")
+
+            # Step 2: Build detailed prompt from product information
+            desc_text = f"\n\nProduct Description: {product_description}" if product_description else ""
+            style_text = f"\n\nStyle/Mood: {user_prompt}" if user_prompt else ""
+
+            generation_prompt = f"""Generate a professional product photograph for: {product_name}{desc_text}{style_text}
+
+REQUIREMENTS:
+- Create a clean, professional product photo suitable for e-commerce and social media
+- Place the product as the main focal point with clear visibility
+- Use appropriate lighting that highlights product features
+- Professional composition with simple, complementary background
+- High quality, photorealistic style
+- The product should look appealing and ready for marketing use
+- Output size: 1080x1080 pixels (square format)
+
+IMPORTANT: Focus on creating a professional, marketable product image that would work well in advertising campaigns."""
+
+            logger.info(f"   📄 Generated prompt (length: {len(generation_prompt)} chars)")
+
+            # Step 3: Use img2img to transform template into product photo
+            response = self.client.models.generate_content(
+                model=self.image_model_name,
+                contents=[generation_prompt, base_template],
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio="1:1"
+                    )
+                )
+            )
+
+            # Step 4: Extract generated image from response
+            if response.parts:
+                for part in response.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        image_data = part.inline_data.data
+                        generated_image = Image.open(io.BytesIO(image_data))
+                        logger.info(f"   ✅ Product image generated! Size: {generated_image.size}")
+                        return generated_image
+
+            # Alternative response format
+            if hasattr(response, 'image'):
+                logger.info(f"   ✅ Product image generated (via response.image)")
+                return response.image
+
+            raise ValueError("No image data found in Gemini response")
+
+        except Exception as e:
+            logger.error(f"   ❌ Product image generation failed: {str(e)}")
+            raise Exception(f"Failed to generate product image from text: {str(e)}")
+
     async def generate_veo_video(
         self,
         prompt: str,

@@ -11,9 +11,10 @@ from database import get_db
 from models.orm import Product, Campaign
 from models.pydantic import (
     ProductCreate, ProductUpdate, ProductRead, ProductValidationResponse,
-    ProductBatchCreate, ProductBatchValidationResponse
+    ProductBatchCreate, ProductBatchValidationResponse, ProductRegenerateImageRequest
 )
-from services.file_manager import process_image_path
+from services.file_manager import process_image_path, save_generated_product_image
+from services.gemini_service import GeminiService
 
 
 router = APIRouter()
@@ -326,3 +327,76 @@ async def delete_product(product_id: str, db: Session = Depends(get_db)):
     db.commit()
 
     return None
+
+
+@router.post("/products/{product_id}/regenerate-image", response_model=ProductRead)
+async def regenerate_product_image(
+    product_id: str,
+    request: ProductRegenerateImageRequest = Body(default=ProductRegenerateImageRequest()),
+    db: Session = Depends(get_db)
+):
+    """
+    Regenerate a product image using AI when the current image is missing or unreadable.
+
+    Uses Google Gemini to generate a professional product photo from the product's
+    name and description.
+
+    Args:
+        product_id: Product ID
+        request: Optional user prompt for style guidance
+        db: Database session
+
+    Returns:
+        Updated product with new image_path
+
+    Raises:
+        404: If product not found
+        500: If image generation or save fails
+    """
+    # Fetch the product
+    db_product = db.query(Product).filter(Product.id == product_id).first()
+    if not db_product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product with id {product_id} not found"
+        )
+
+    try:
+        print(f"🎨 Regenerating image for product: {db_product.name}")
+
+        # Initialize Gemini service
+        gemini_service = GeminiService()
+
+        # Generate image from text using product information
+        generated_image = await gemini_service.generate_product_image_from_text(
+            product_name=db_product.name,
+            product_description=db_product.description,
+            user_prompt=request.user_prompt
+        )
+
+        print(f"✅ Image generated successfully")
+
+        # Save the generated image
+        new_image_path = await save_generated_product_image(
+            image=generated_image,
+            product_name=db_product.name
+        )
+
+        print(f"✅ Image saved to: {new_image_path}")
+
+        # Update product with new image path
+        db_product.image_path = new_image_path
+        db.commit()
+        db.refresh(db_product)
+
+        print(f"✅ Product updated with new image path")
+
+        return db_product
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Image regeneration failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate product image: {str(e)}"
+        )

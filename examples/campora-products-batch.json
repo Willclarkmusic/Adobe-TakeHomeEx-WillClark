@@ -10,6 +10,11 @@
     "image_path": "examples/Campora_assets/product_boots1.jpeg"
   },
   {
+    "name": "Three seasons Hiking Tent",
+    "description": "Lightweight 3-season tent with durable ripstop nylon fabric and aluminum poles. Color blue. Easy setup with color-coded clips and stakes, ideal for backpacking and camping trips.",
+    "image_path": "examples/Campora_assets/product_tent1.avif"
+  },
+  {
     "name": "Vertical Edge Climbing Harness",
     "description": "Lightweight sport climbing harness with ergonomic design and four gear loops. Certified for indoor and outdoor climbing up to 5.14 difficulty.",
     "image_path": "examples/Campora_assets/product_climbing2.jpg"

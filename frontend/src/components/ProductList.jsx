@@ -1,10 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
 
 /**
  * Product list component with image display
  * Each rendering concern is separated into its own method
  */
-function ProductList({ products, onEdit, onDelete }) {
+function ProductList({ products, onEdit, onDelete, onProductUpdate }) {
+  // ============ State Management ============
+
+  const [failedImages, setFailedImages] = useState(new Set());
+  const [regeneratingProducts, setRegeneratingProducts] = useState(new Set());
+  const [confirmModal, setConfirmModal] = useState({
+    show: false,
+    product: null
+  });
+
   // ============ Validation Methods ============
 
   const hasProducts = () => {
@@ -13,6 +22,14 @@ function ProductList({ products, onEdit, onDelete }) {
 
   const hasImage = (product) => {
     return product.image_path && product.image_path.trim();
+  };
+
+  const isImageFailed = (product) => {
+    return failedImages.has(product.id);
+  };
+
+  const isRegenerating = (product) => {
+    return regeneratingProducts.has(product.id);
   };
 
   // ============ Render Helper Methods ============
@@ -28,8 +45,9 @@ function ProductList({ products, onEdit, onDelete }) {
   };
 
   const renderProductImage = (product) => {
-    if (!hasImage(product)) {
-      return renderPlaceholderImage();
+    // Show generate button if image failed or missing
+    if (!hasImage(product) || isImageFailed(product)) {
+      return renderGenerateImageButton(product);
     }
 
     return (
@@ -42,18 +60,34 @@ function ProductList({ products, onEdit, onDelete }) {
     );
   };
 
-  const renderPlaceholderImage = () => {
+  const renderGenerateImageButton = (product) => {
     return (
-      <div className="w-full h-48 border-4 border-black dark:border-white bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-        <span className="text-6xl">📦</span>
+      <div className="w-full h-48 border-4 border-black dark:border-white bg-gray-200 dark:bg-gray-700 flex flex-col items-center justify-center gap-3">
+        {isRegenerating(product) ? (
+          <>
+            <span className="text-5xl animate-pulse">🎨</span>
+            <p className="font-mono text-sm font-bold uppercase">Generating...</p>
+          </>
+        ) : (
+          <>
+            <span className="text-5xl">🖼️</span>
+            <button
+              onClick={() => openConfirmModal(product)}
+              className="px-4 py-2 border-3 border-black dark:border-white bg-green-400 dark:bg-green-600 text-black dark:text-white font-bold uppercase text-sm hover:translate-x-1 hover:translate-y-1 transition-transform"
+              disabled={isRegenerating(product)}
+            >
+              🎨 Generate Image
+            </button>
+          </>
+        )}
       </div>
     );
   };
 
   const handleImageError = (e, product) => {
     console.error(`Failed to load image for product: ${product.name}`);
-    e.target.style.display = "none";
-    e.target.nextElementSibling.style.display = "flex";
+    // Mark this product's image as failed
+    setFailedImages(prev => new Set(prev).add(product.id));
   };
 
   const renderProductDetails = (product) => {
@@ -175,6 +209,72 @@ function ProductList({ products, onEdit, onDelete }) {
     }
   };
 
+  const openConfirmModal = (product) => {
+    setConfirmModal({
+      show: true,
+      product
+    });
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmModal({
+      show: false,
+      product: null
+    });
+  };
+
+  const handleRegenerateImage = async () => {
+    const product = confirmModal.product;
+    if (!product) return;
+
+    // Close modal
+    closeConfirmModal();
+
+    // Mark as regenerating
+    setRegeneratingProducts(prev => new Set(prev).add(product.id));
+
+    try {
+      const response = await fetch(`/api/products/${product.id}/regenerate-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to regenerate image");
+      }
+
+      const updatedProduct = await response.json();
+
+      // Remove from failed images set
+      setFailedImages(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(product.id);
+        return newSet;
+      });
+
+      // Notify parent component to update the product list
+      if (onProductUpdate) {
+        onProductUpdate(updatedProduct);
+      }
+
+      console.log("✅ Product image regenerated successfully");
+    } catch (error) {
+      console.error("❌ Image regeneration failed:", error);
+      alert(`Failed to regenerate image: ${error.message}`);
+    } finally {
+      // Remove from regenerating set
+      setRegeneratingProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(product.id);
+        return newSet;
+      });
+    }
+  };
+
   // ============ Main Render ============
 
   if (!hasProducts()) {
@@ -182,9 +282,42 @@ function ProductList({ products, onEdit, onDelete }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {products.filter(product => product != null).map((product) => renderProduct(product))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {products.filter(product => product != null).map((product) => renderProduct(product))}
+      </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal.show && confirmModal.product && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="brutalist-card bg-white dark:bg-gray-800 max-w-md w-full">
+            <h3 className="text-2xl font-bold uppercase mb-4">
+              Regenerate Image?
+            </h3>
+            <p className="font-mono text-sm mb-4 text-gray-700 dark:text-gray-300">
+              Are you sure you want to regenerate the image for <strong>{confirmModal.product.name}</strong>?
+            </p>
+            <p className="font-mono text-xs mb-6 text-gray-600 dark:text-gray-400">
+              This will use AI to generate a new product photo based on the product name and description.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleRegenerateImage}
+                className="brutalist-button bg-green-400 dark:bg-green-600 flex-1"
+              >
+                Yes, Regenerate
+              </button>
+              <button
+                onClick={closeConfirmModal}
+                className="brutalist-button bg-gray-300 dark:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -371,6 +371,7 @@ function CampaignPage({
             products={products}
             onEdit={openEditProductModal}
             onDelete={handleDeleteProduct}
+            onProductUpdate={updateProductInList}
           />
         )}
       </div>

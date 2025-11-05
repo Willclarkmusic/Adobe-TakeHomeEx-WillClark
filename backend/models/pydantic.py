@@ -130,6 +130,14 @@ class ProductBatchCreate(BaseModel):
     products: List[ProductCreate]
 
 
+class ProductRegenerateImageRequest(BaseModel):
+    """
+    Schema for product image regeneration request.
+    Product ID comes from URL path, product data comes from database.
+    """
+    user_prompt: Optional[str] = None  # Optional style/mood guidance for image generation
+
+
 class ProductRead(BaseModel):
     """
     Schema for reading/returning product data via API.

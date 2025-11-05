@@ -324,3 +324,43 @@ def delete_mood_file(file_path: str) -> bool:
     except Exception as e:
         print(f"Error deleting mood file {file_path}: {e}")
         return False
+
+
+async def save_generated_product_image(image, product_name: str) -> str:
+    """
+    Save a generated product image to /files/media/ directory.
+
+    Args:
+        image: PIL Image object to save
+        product_name: Product name (will be sanitized for filename)
+
+    Returns:
+        Relative path (e.g., "/static/media/product_Tent_abc123.png")
+
+    Raises:
+        Exception: If image save fails
+    """
+    try:
+        # Import PIL here to avoid circular imports
+        from PIL import Image as PILImage
+        import re
+        import io
+
+        # Sanitize product name for filename
+        # Remove special characters, replace spaces with underscores, lowercase
+        sanitized_name = re.sub(r'[^\w\s-]', '', product_name)
+        sanitized_name = re.sub(r'[-\s]+', '_', sanitized_name)
+        sanitized_name = sanitized_name.strip('_')[:30]  # Max 30 chars
+
+        # Generate unique filename
+        filename = f"product_{sanitized_name}_{uuid.uuid4().hex[:8]}.png"
+        filepath = MEDIA_DIR / filename
+
+        # Save the PIL Image
+        image.save(filepath, format='PNG', quality=95)
+        print(f"✅ Saved generated product image: {filename}")
+
+        return f"/static/media/{filename}"
+
+    except Exception as e:
+        raise Exception(f"Failed to save generated product image: {str(e)}")
