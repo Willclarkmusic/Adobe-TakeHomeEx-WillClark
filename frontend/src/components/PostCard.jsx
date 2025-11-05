@@ -3,10 +3,24 @@ import React, { useState } from "react";
 /**
  * PostCard Component - Compact Instagram-style post card
  * Similar to ProductCard layout with image preview and text below
+ * Now supports multi-source image generation (products + mood board)
  */
 function PostCard({ post, onEdit, onDelete }) {
   // Track which aspect ratio is being previewed
   const [selectedRatio, setSelectedRatio] = useState(getFirstAvailableRatio());
+
+  // Parse source images (stored as JSON string in DB)
+  const getSourceImages = () => {
+    if (!post.source_images) return [];
+    try {
+      return JSON.parse(post.source_images);
+    } catch (e) {
+      console.error("Failed to parse source_images:", e);
+      return [];
+    }
+  };
+
+  const sourceImages = getSourceImages();
 
   function getFirstAvailableRatio() {
     if (post.image_1_1) return "1:1";
@@ -92,6 +106,38 @@ function PostCard({ post, onEdit, onDelete }) {
     );
   };
 
+  const renderSourceImages = () => {
+    if (sourceImages.length === 0) return null;
+
+    return (
+      <div className="px-3 pb-3 border-t-2 border-gray-200 dark:border-gray-700 pt-3 mt-2">
+        <div className="flex items-center justify-between mb-2">
+          <p className="font-bold text-sm uppercase">Source Images:</p>
+          <span className="text-xs font-mono text-gray-600 dark:text-gray-400">
+            {sourceImages.length === 1
+              ? "📷 Single (img2img)"
+              : `🎨 ${sourceImages.length} images (composition)`}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {sourceImages.map((imgPath, index) => (
+            <div
+              key={index}
+              className="relative w-16 h-16 border-2 border-black dark:border-white overflow-hidden"
+              title={imgPath}
+            >
+              <img
+                src={`/static/${imgPath}`}
+                alt={`Source ${index + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderActionButtons = () => {
     return (
       <div className="flex gap-2 mx-auto w-full px-3 pb-3">
@@ -121,7 +167,7 @@ function PostCard({ post, onEdit, onDelete }) {
   };
 
   return (
-    <div className="border-2 border-black dark:border-white overflow-hidden bg-white dark:bg-black">
+    <div className="border-2 dark:border-white overflow-hidden bg-white dark:bg-gray-900">
       {/* Post Image Preview */}
       <div className="relative">
         {renderPostImage()}
@@ -136,6 +182,9 @@ function PostCard({ post, onEdit, onDelete }) {
 
       {/* Text Content */}
       <div className="py-2">{renderTextContent()}</div>
+
+      {/* Source Images Section
+      {renderSourceImages()} */}
 
       {/* Action Buttons */}
       {renderActionButtons()}

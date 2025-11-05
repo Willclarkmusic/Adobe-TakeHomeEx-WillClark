@@ -19,6 +19,8 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jsonFile, setJsonFile] = useState(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     populateFormFromCampaign();
@@ -29,6 +31,28 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
   useImperativeHandle(ref, () => ({
     handleJsonFileSelect
   }));
+
+  // ============ Helper Functions ============
+
+  /**
+   * Normalize image path for preview display.
+   * Handles URLs, /static/ paths, and local file paths.
+   */
+  const getImagePreviewPath = (imagePath) => {
+    if (!imagePath) return imagePath;
+
+    // If already starts with /static/ or http, use as-is
+    if (imagePath.startsWith('/static/') || imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // If looks like a local file path, prefix with / for static serving
+    if (imagePath.includes('/') || imagePath.includes('\\')) {
+      return `/${imagePath}`;  // examples/... → /examples/...
+    }
+
+    return imagePath;
+  };
 
   // ============ Form Population Methods ============
 
@@ -132,6 +156,101 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
   const removeBrandImageField = (index) => {
     const updatedImages = formData.brand_images.filter((_, i) => i !== index);
     updateFormField('brand_images', updatedImages);
+  };
+
+  // ============ Drag & Drop Handlers ============
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+
+    if (imageFiles.length === 0) {
+      setErrors(prev => ({ ...prev, images: 'Please drop image files only' }));
+      return;
+    }
+
+    await uploadMultipleImages(imageFiles);
+  };
+
+  const handleImageFilesSelect = async (e) => {
+    const files = Array.from(e.target.files);
+    await uploadMultipleImages(files);
+  };
+
+  // ============ Image Upload Methods ============
+
+  const uploadMultipleImages = async (files) => {
+    const currentCount = formData.brand_images.length;
+    const totalCount = currentCount + files.length;
+
+    if (totalCount > 5) {
+      setErrors(prev => ({
+        ...prev,
+        images: `Cannot add ${files.length} image(s). Maximum 5 images allowed. You currently have ${currentCount}.`
+      }));
+      return;
+    }
+
+    setUploadingImages(true);
+    setErrors(prev => ({ ...prev, images: undefined }));
+
+    try {
+      const uploadedPaths = [];
+
+      for (const file of files) {
+        const filePath = await uploadSingleImage(file);
+        uploadedPaths.push(filePath);
+      }
+
+      // Add all uploaded images to brand_images
+      const updatedImages = [...formData.brand_images, ...uploadedPaths];
+      updateFormField('brand_images', updatedImages);
+
+    } catch (error) {
+      handleImageUploadError(error);
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  const uploadSingleImage = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/media/upload', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload image');
+    }
+
+    const result = await response.json();
+    return result.file_path;
+  };
+
+  const handleImageUploadError = (error) => {
+    setErrors(prev => ({
+      ...prev,
+      images: `Image upload failed: ${error.message}`
+    }));
   };
 
   // ============ JSON File Handling Methods ============
@@ -432,75 +551,104 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
   };
 
   const renderBrandImagesSection = () => {
+    const canAddMore = formData.brand_images.length < 5;
+
     return (
       <div>
         <label className="block text-sm font-bold uppercase mb-2">
-          Brand Images (URLs or Paths)
+          Brand Images ({formData.brand_images.length}/5)
         </label>
 
-        <div className="space-y-4">
-          {formData.brand_images.map((image, index) => (
-            <div key={index} className="space-y-2">
-              {/* Image Preview */}
-              {image && renderBrandImagePreview(image, index)}
-
-              {/* Image URL Input */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={image}
-                  onChange={(e) => handleBrandImageChange(index, e.target.value)}
-                  className="brutalist-input flex-1"
-                  placeholder="https://example.com/image.jpg or /static/media/image.jpg"
-                  disabled={isSubmitting}
+        {/* Uploaded Images Grid */}
+        {formData.brand_images.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+            {formData.brand_images.map((image, index) => (
+              <div key={index} className="relative border-4 border-black dark:border-white overflow-hidden bg-gray-100 dark:bg-gray-800">
+                <img
+                  src={getImagePreviewPath(image)}
+                  alt={`Brand Image ${index + 1}`}
+                  className="w-full h-40 object-cover"
+                  onError={(e) => {
+                    e.target.src = '';
+                    e.target.alt = '❌ Failed to load';
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => removeBrandImageField(index)}
-                  className="px-4 py-2 border-3 border-black dark:border-white bg-red-500 text-white font-bold uppercase text-sm"
-                  disabled={isSubmitting}
+                  className="absolute top-2 right-2 px-3 py-1 bg-red-500 text-white font-bold text-xs border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none transition-shadow"
+                  disabled={isSubmitting || uploadingImages}
                 >
-                  Remove
+                  ✕
                 </button>
               </div>
+            ))}
+          </div>
+        )}
+
+        {/* Drag & Drop Zone (only if can add more) */}
+        {canAddMore && (
+          <div className="mb-3">
+            {/* Hidden file input */}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageFilesSelect}
+              className="hidden"
+              id="brand-images-upload"
+              disabled={isSubmitting || uploadingImages}
+            />
+
+            {/* Clickable Drag & Drop Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => {
+                if (!isSubmitting && !uploadingImages) {
+                  document.getElementById('brand-images-upload').click();
+                }
+              }}
+              className={`
+                border-4 border-dashed p-6 text-center transition-colors cursor-pointer
+                ${isDragging
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                  : 'border-black dark:border-white bg-gray-50 dark:bg-gray-800'
+                }
+                ${(isSubmitting || uploadingImages) ? 'opacity-50 pointer-events-none' : ''}
+              `}
+            >
+              <div className="text-2xl mb-2">🖼️</div>
+              <div className="text-sm font-mono">
+                {uploadingImages ? (
+                  <span className="font-bold text-gray-600 dark:text-gray-400">Uploading images...</span>
+                ) : isDragging ? (
+                  <span className="font-bold text-blue-600 dark:text-blue-400">Drop images here!</span>
+                ) : (
+                  <span>Click or drag & drop images here</span>
+                )}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                PNG, JPG, GIF, WEBP • Max 5 images • {5 - formData.brand_images.length} remaining
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
-        <button
-          type="button"
-          onClick={addBrandImageField}
-          className="mt-3 brutalist-button bg-green-400 dark:bg-green-600"
-          disabled={isSubmitting}
-        >
-          + Add Image
-        </button>
+        {/* Error message */}
+        {errors.images && (
+          <div className="border-4 border-red-500 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-200 p-3 mb-3">
+            <p className="font-mono text-sm">{errors.images}</p>
+          </div>
+        )}
 
-        <p className="text-xs font-mono text-gray-500 dark:text-gray-400 mt-2">
-          URLs will be automatically downloaded and stored locally
-        </p>
-      </div>
-    );
-  };
-
-  const renderBrandImagePreview = (imagePath, index) => {
-    return (
-      <div className="border-4 border-black dark:border-white overflow-hidden bg-gray-100 dark:bg-gray-800">
-        <img
-          src={imagePath}
-          alt={`Brand Image ${index + 1}`}
-          className="w-full h-48 object-cover"
-          onError={(e) => {
-            e.target.style.display = 'none';
-            e.target.nextSibling.style.display = 'flex';
-          }}
-        />
-        <div
-          style={{ display: 'none' }}
-          className="w-full h-48 flex items-center justify-center text-red-500 font-mono text-xs p-2 text-center"
-        >
-          ❌ Failed to load preview
-        </div>
+        {/* Info message when max reached */}
+        {!canAddMore && (
+          <div className="border-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-200 p-3">
+            <p className="font-mono text-sm">✓ Maximum of 5 brand images reached</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -568,7 +716,7 @@ const CampaignForm = forwardRef(({ campaign, onSave, onCancel, onTabSwitch }, re
       <div key={index} className="border-3 border-black dark:border-white bg-white dark:bg-gray-800 p-3">
         {product.image_path && (
           <img
-            src={product.image_path}
+            src={getImagePreviewPath(product.image_path)}
             alt={product.name}
             className="w-full h-32 object-cover border-3 border-black dark:border-white mb-2"
             onError={(e) => {

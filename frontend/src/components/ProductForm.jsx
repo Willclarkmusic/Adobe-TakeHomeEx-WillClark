@@ -1,4 +1,5 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import ProductBatchPreview from './ProductBatchPreview';
 
 /**
  * Product form component with manual input, JSON upload, and image preview
@@ -14,6 +15,12 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jsonFile, setJsonFile] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Batch product state
+  const [batchProducts, setBatchProducts] = useState([]);
+  const [batchValidationResults, setBatchValidationResults] = useState(null);
+  const [showBatchPreview, setShowBatchPreview] = useState(false);
 
   useEffect(() => {
     populateFormFromProduct();
@@ -24,6 +31,28 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
   useImperativeHandle(ref, () => ({
     handleJsonFileSelect
   }));
+
+  // ============ Helper Functions ============
+
+  /**
+   * Normalize image path for preview display.
+   * Handles URLs, /static/ paths, and local file paths.
+   */
+  const getImagePreviewPath = (imagePath) => {
+    if (!imagePath) return imagePath;
+
+    // If already starts with /static/ or http, use as-is
+    if (imagePath.startsWith('/static/') || imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // If looks like a local file path, prefix with / for static serving
+    if (imagePath.includes('/') || imagePath.includes('\\')) {
+      return `/${imagePath}`;  // examples/... → /examples/...
+    }
+
+    return imagePath;
+  };
 
   // ============ Form Population Methods ============
 
@@ -134,6 +163,41 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
     }));
   };
 
+  // ============ Drag & Drop Handlers ============
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      const file = files[0];
+
+      // Check if it's an image file
+      if (file.type.startsWith('image/')) {
+        await uploadImageFile(file);
+      } else {
+        setErrors(prev => ({
+          ...prev,
+          image: 'Please drop an image file (PNG, JPG, GIF, etc.)'
+        }));
+      }
+    }
+  };
+
   // ============ JSON File Handling Methods ============
 
   const handleJsonFileSelect = (e) => {
@@ -173,13 +237,53 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
 
   const validateAndProcessJson = async (jsonData) => {
     try {
-      // Add campaign_id if not present
-      const dataWithCampaign = { ...jsonData, campaign_id: campaignId };
-      const response = await sendValidationRequest(dataWithCampaign);
-      handleValidationResponse(response);
+      // Detect if batch (array) or single product (object)
+      if (Array.isArray(jsonData)) {
+        await handleBatchValidation(jsonData);
+      } else {
+        // Single product flow
+        const dataWithCampaign = { ...jsonData, campaign_id: campaignId };
+        const response = await sendValidationRequest(dataWithCampaign);
+        handleValidationResponse(response);
+      }
     } catch (error) {
       throw new Error(`Validation failed: ${error.message}`);
     }
+  };
+
+  const handleBatchValidation = async (productsArray) => {
+    // Add campaign_id to each product
+    const productsWithCampaign = productsArray.map(product => ({
+      ...product,
+      campaign_id: campaignId
+    }));
+
+    // Send batch validation request
+    const response = await sendBatchValidationRequest(productsWithCampaign);
+
+    // Store batch data
+    setBatchProducts(productsWithCampaign);
+    setBatchValidationResults(response);
+
+    // Show preview screen
+    setShowBatchPreview(true);
+
+    // Clear any previous errors
+    setErrors({});
+  };
+
+  const sendBatchValidationRequest = async (productsArray) => {
+    const response = await fetch('/api/products/batch/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productsArray)
+    });
+
+    if (!response.ok) {
+      throw new Error('Batch validation request failed');
+    }
+
+    return response.json();
   };
 
   const sendValidationRequest = async (data) => {
@@ -301,6 +405,62 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
     setErrors({ submit: error.message });
   };
 
+  // ============ Batch Submission Methods ============
+
+  const handleBatchConfirm = async (selectedProducts) => {
+    setIsSubmitting(true);
+
+    try {
+      const createdProducts = await submitBatchProducts(selectedProducts);
+      handleBatchSubmitSuccess(createdProducts);
+    } catch (error) {
+      handleBatchSubmitError(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitBatchProducts = async (products) => {
+    const response = await fetch('/api/products/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create products');
+    }
+
+    return response.json();
+  };
+
+  const handleBatchSubmitSuccess = (createdProducts) => {
+    setShowBatchPreview(false);
+    setBatchProducts([]);
+    setBatchValidationResults(null);
+    setJsonFile(null);
+    setErrors({
+      json: `✅ Success! Created ${createdProducts.length} product${createdProducts.length !== 1 ? 's' : ''}.`
+    });
+
+    // Notify parent
+    if (onSave) {
+      onSave();
+    }
+  };
+
+  const handleBatchSubmitError = (error) => {
+    setErrors({ submit: `Batch creation failed: ${error.message}` });
+  };
+
+  const handleBatchCancel = () => {
+    setShowBatchPreview(false);
+    setBatchProducts([]);
+    setBatchValidationResults(null);
+    setJsonFile(null);
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -382,8 +542,52 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
           disabled={isSubmitting || uploadingImage}
         />
 
-        {/* File Upload Button */}
-        {renderImageUploadButton()}
+        {/* Drag & Drop Zone (Click or Drop) */}
+        <div className="mb-3">
+          {/* Hidden file input */}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageFileSelect}
+            className="hidden"
+            id="image-upload"
+            disabled={isSubmitting || uploadingImage}
+          />
+
+          {/* Clickable Drag & Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => {
+              if (!isSubmitting && !uploadingImage) {
+                document.getElementById('image-upload').click();
+              }
+            }}
+            className={`
+              border-4 border-dashed p-6 text-center transition-colors cursor-pointer
+              ${isDragging
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                : 'border-black dark:border-white bg-gray-50 dark:bg-gray-800'
+              }
+              ${(isSubmitting || uploadingImage) ? 'opacity-50 pointer-events-none' : ''}
+            `}
+          >
+            <div className="text-2xl mb-2">📎</div>
+            <div className="text-sm font-mono">
+              {uploadingImage ? (
+                <span className="font-bold text-gray-600 dark:text-gray-400">Uploading...</span>
+              ) : isDragging ? (
+                <span className="font-bold text-blue-600 dark:text-blue-400">Drop image here!</span>
+              ) : (
+                <span>Click or drag & drop image here</span>
+              )}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              PNG, JPG, GIF, WEBP
+            </div>
+          </div>
+        </div>
 
         {errors.image && renderError(errors.image)}
 
@@ -398,37 +602,13 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
     return (
       <div className="mb-3 border-4 border-black dark:border-white overflow-hidden">
         <img
-          src={formData.image_path}
+          src={getImagePreviewPath(formData.image_path)}
           alt="Preview"
           className="w-full h-48 object-cover"
           onError={(e) => {
             e.target.style.display = 'none';
           }}
         />
-      </div>
-    );
-  };
-
-  const renderImageUploadButton = () => {
-    return (
-      <div>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleImageFileSelect}
-          className="hidden"
-          id="image-upload"
-          disabled={isSubmitting || uploadingImage}
-        />
-        <label
-          htmlFor="image-upload"
-          className={`
-            cursor-pointer inline-block brutalist-button bg-blue-400 dark:bg-blue-600
-            ${(isSubmitting || uploadingImage) ? 'opacity-50 cursor-not-allowed' : ''}
-          `}
-        >
-          {uploadingImage ? 'Uploading...' : '📁 Upload Image'}
-        </label>
       </div>
     );
   };
@@ -521,6 +701,19 @@ const ProductForm = forwardRef(({ campaignId, product, onSave, onCancel, onTabSw
 
   // ============ Main Render ============
 
+  // Show batch preview if batch data is ready
+  if (showBatchPreview && batchProducts.length > 0 && batchValidationResults) {
+    return (
+      <ProductBatchPreview
+        products={batchProducts}
+        validationResults={batchValidationResults}
+        onConfirm={handleBatchConfirm}
+        onCancel={handleBatchCancel}
+      />
+    );
+  }
+
+  // Otherwise, show normal form
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {renderManualFormFields()}

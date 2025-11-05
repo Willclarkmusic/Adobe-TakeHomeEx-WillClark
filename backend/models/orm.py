@@ -1,7 +1,7 @@
 """
 SQLAlchemy ORM models for the Creative Automation Hub.
 """
-from sqlalchemy import Column, String, Text, ForeignKey, Date, Integer, DateTime
+from sqlalchemy import Column, String, Text, ForeignKey, Date, Integer, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -28,6 +28,7 @@ class Campaign(Base):
     # Relationships
     products = relationship("Product", back_populates="campaign", cascade="all, delete-orphan")
     posts = relationship("Post", back_populates="campaign", cascade="all, delete-orphan")
+    mood_media = relationship("MoodMedia", back_populates="campaign", cascade="all, delete-orphan")
 
 
 class Product(Base):
@@ -53,14 +54,17 @@ class Post(Base):
     """
     Post model representing an AI-generated social media post.
 
-    Links to both a campaign and a product. Stores generated text content
-    (headline, body, caption) and paths to generated images for multiple aspect ratios.
+    Can be generated from product images, mood board images, or both.
+    Stores generated text content (headline, body, caption) and paths to
+    generated images for multiple aspect ratios.
     """
     __tablename__ = "posts"
 
     id = Column(String, primary_key=True, index=True)
     campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
-    product_id = Column(String, ForeignKey("products.id"), nullable=False, index=True)
+    product_id = Column(String, ForeignKey("products.id"), nullable=True, index=True)  # Now nullable
+    mood_id = Column(String, ForeignKey("moods_media.id"), nullable=True, index=True)  # New field
+    source_images = Column(Text, nullable=True)  # JSON array of image paths used for generation
     headline = Column(Text, nullable=False)
     body_text = Column(Text, nullable=False)
     caption = Column(Text, nullable=False)
@@ -73,4 +77,56 @@ class Post(Base):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="posts")
-    product = relationship("Product", back_populates="posts")
+    product = relationship("Product", back_populates="posts")  # Now nullable
+    mood_media = relationship("MoodMedia")  # New relationship
+
+
+class MoodMedia(Base):
+    """
+    Mood Media model representing mood board media (images and videos).
+
+    Can be AI-generated or manually uploaded. Stores metadata about generation
+    including prompts, source images, and aspect ratios.
+    """
+    __tablename__ = "moods_media"
+
+    id = Column(String, primary_key=True, index=True)
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
+    file_path = Column(Text, nullable=False)  # Relative path (e.g., moods/Summer2025_img_20250111_143022_1-1.png)
+    gcs_uri = Column(Text, nullable=True)  # GCS URI (e.g., gs://bucket/moods/file.png) - for Veo reference images
+    media_type = Column(String, nullable=False)  # "image" or "video"
+    is_generated = Column(Boolean, default=True, nullable=False)  # False for manual uploads
+    prompt = Column(Text, nullable=True)  # Full prompt used for AI generation
+    source_images = Column(Text, nullable=True)  # JSON array of source image paths
+    aspect_ratio = Column(String, nullable=True)  # "1:1", "16:9", etc.
+    generation_metadata = Column(Text, nullable=True)  # JSON object with model, duration, seed, etc.
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="mood_media")
+
+
+class ScheduledPost(Base):
+    """
+    Scheduled Post model for tracking social media posts scheduled via Ayrshare.
+
+    Links to a post and campaign. Stores scheduling configuration, target platforms,
+    and Ayrshare API response data.
+    """
+    __tablename__ = "scheduled_posts"
+
+    id = Column(String, primary_key=True, index=True)
+    post_id = Column(String, ForeignKey("posts.id"), nullable=False, index=True)
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False, index=True)
+    schedule_type = Column(String, nullable=False)  # "immediate", "scheduled", "recurring"
+    platforms = Column(Text, nullable=False)  # JSON array of platform names (e.g., ["instagram", "facebook"])
+    schedule_time = Column(DateTime, nullable=True)  # Null for immediate posts
+    recurring_config = Column(Text, nullable=True)  # JSON: {repeat: 4, days: 7, order: "random"/"sequential"}
+    ayrshare_post_id = Column(String, nullable=True)  # Ayrshare API response ID
+    status = Column(String, default="pending", nullable=False)  # "pending", "posted", "failed", "cancelled"
+    error_message = Column(Text, nullable=True)  # Error details if status is "failed"
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    post = relationship("Post")
+    campaign = relationship("Campaign")

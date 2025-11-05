@@ -1,0 +1,57 @@
+[
+  {
+    "name": "Alpine Pro Backpack",
+    "description": "60L technical mountaineering backpack with adjustable suspension system, reinforced climbing gear loops, and waterproof compartments. Built for multi-day expeditions in extreme conditions.",
+    "image_path": "examples/Campora_assets/product_backpack1.jpg"
+  },
+  {
+    "name": "Summit Trekking Boots",
+    "description": "Waterproof leather hiking boots with Vibram soles and ankle support. Perfect for technical approaches and long-distance trails in variable terrain.",
+    "image_path": "examples/Campora_assets/product_boots1.jpeg"
+  },
+  {
+    "name": "Vertical Edge Climbing Harness",
+    "description": "Lightweight sport climbing harness with ergonomic design and four gear loops. Certified for indoor and outdoor climbing up to 5.14 difficulty.",
+    "image_path": "examples/Campora_assets/product_climbing2.jpg"
+  },
+  {
+    "name": "Grip Master Chalk Bag",
+    "description": "Durable chalk bag with fleece lining and secure drawstring closure. Features belt loop and reinforced base for long-lasting performance on the wall.",
+    "image_path": "examples/Campora_assets/product_climbingChalkBag.jpeg"
+  },
+  {
+    "name": "Dynamic 70m Climbing Rope",
+    "description": "UIAA certified 9.8mm dynamic rope rated for 300+ falls. Excellent handling characteristics with dry treatment for all-weather climbing.",
+    "image_path": "examples/Campora_assets/product_climbingRope.jpeg"
+  },
+  {
+    "name": "Rock Grip Pro Climbing Shoes",
+    "description": "High-performance climbing shoes with sticky rubber and asymmetric design. Ideal for steep sport routes and bouldering projects.",
+    "image_path": "examples/Campora_assets/product_climbingShoes1.jpg"
+  },
+  {
+    "name": "Storm Shield Mountaineering Jacket",
+    "description": "3-layer Gore-Tex pro shell jacket with pit zips and adjustable hood. Designed for alpine climbing and extreme weather protection.",
+    "image_path": "examples/Campora_assets/product_jacket1.jpg"
+  },
+  {
+    "name": "Trail Blaze Softshell Jacket",
+    "description": "Breathable softshell jacket with water-resistant coating and stretch panels. Perfect for active mountain pursuits and changing conditions.",
+    "image_path": "examples/Campora_assets/product_jacket2.jpg"
+  },
+  {
+    "name": "Expedition Camp Stove",
+    "description": "Compact multi-fuel camping stove with windscreen and piezo ignition. Boils water in under 3 minutes, ideal for high-altitude cooking.",
+    "image_path": "examples/Campora_assets/product_stove1.webp"
+  },
+  {
+    "name": "Basecamp 3-Season Tent",
+    "description": "Ultralight 2-person tent with vestibule and freestanding design. Weighs only 2.8kg with excellent wind resistance and quick setup.",
+    "image_path": "examples/Campora_assets/product_tent1.avif"
+  },
+  {
+    "name": "Alpine Expedition 4-Season Tent",
+    "description": "Robust 4-season mountaineering tent designed for harsh conditions. Features geodesic dome structure, reinforced poles, and exceptional snow load capacity.",
+    "image_path": "examples/Campora_assets/product_tent2.webp"
+  }
+]

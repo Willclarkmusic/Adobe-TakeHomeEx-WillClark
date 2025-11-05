@@ -13,9 +13,11 @@ from api.campaigns import router as campaigns_router
 from api.products import router as products_router
 from api.media import router as media_router
 from api.posts import router as posts_router
+from api.moods import router as moods_router
+from api.deploy import router as deploy_router
 
 # Import ORM models to ensure they're registered with SQLAlchemy
-from models.orm import Campaign, Product, Post
+from models.orm import Campaign, Product, Post, MoodMedia, ScheduledPost
 
 
 # Create FastAPI application
@@ -39,6 +41,8 @@ app.include_router(campaigns_router, prefix="/api", tags=["Campaigns"])
 app.include_router(products_router, prefix="/api", tags=["Products"])
 app.include_router(posts_router, prefix="/api", tags=["Posts"])
 app.include_router(media_router, prefix="/api", tags=["Media"])
+app.include_router(moods_router, tags=["Moods"])
+app.include_router(deploy_router, tags=["Deploy"])
 
 # Mount static files directory
 # Get the absolute path to the files directory
@@ -49,6 +53,14 @@ if FILES_DIR.exists():
     print(f"✅ Static files mounted from: {FILES_DIR}")
 else:
     print(f"⚠️  Warning: Static files directory not found at {FILES_DIR}")
+
+# Mount examples directory for JSON campaign previews
+EXAMPLES_DIR = BASE_DIR / "examples"
+if EXAMPLES_DIR.exists():
+    app.mount("/examples", StaticFiles(directory=str(EXAMPLES_DIR)), name="examples")
+    print(f"✅ Examples directory mounted from: {EXAMPLES_DIR}")
+else:
+    print(f"⚠️  Warning: Examples directory not found at {EXAMPLES_DIR}")
 
 
 @app.on_event("startup")

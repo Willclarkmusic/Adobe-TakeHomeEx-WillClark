@@ -37,7 +37,7 @@ FDE Take Home.pdf
 # OS
 Thumbs.db
 .DS_Store
-
+gcs-key.json
 # Uploads (except sample files)
 # files/media/*
 # files/posts/*

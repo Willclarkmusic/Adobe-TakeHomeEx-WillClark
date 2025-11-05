@@ -88,7 +88,12 @@ function CampaignPage({
   };
 
   const handleProductSaved = (savedProduct) => {
-    if (editingProduct) {
+    // If no product passed (e.g., batch creation), just refresh the entire list
+    if (!savedProduct) {
+      if (selectedCampaign) {
+        fetchProducts(selectedCampaign.id);
+      }
+    } else if (editingProduct) {
       updateProductInList(savedProduct);
     } else {
       addProductToList(savedProduct);
@@ -236,7 +241,7 @@ function CampaignPage({
 
   const renderScheduleSection = () => {
     return (
-      <div className="border-4 border-black dark:border-white p-4 bg-yellow-50 dark:bg-yellow-900/20">
+      <div className="border-0 border-black dark:border-white p-4 bg-yellow-50 dark:bg-yellow-900/20">
         <h3 className="text-xl font-bold uppercase mb-4">📅 Schedule</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>

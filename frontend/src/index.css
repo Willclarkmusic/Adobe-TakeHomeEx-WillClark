@@ -10,29 +10,30 @@
 
   body {
     @apply bg-white dark:bg-gray-700 text-black dark:text-slate-300;
-    font-family: "Courier New", monospace;
+    font-family: "Roboto", monospace;
   }
 }
 
 /* Neo-Brutalist Component Styles */
 @layer components {
   .brutalist-border {
-    @apply border-2 border-black dark:border-gray-300;
+    @apply border-[1px] border-black dark:border-gray-300;
   }
 
   .brutalist-button {
-    @apply px-3 py-3 border-2 border-black dark:border-gray-300 bg-white dark:bg-gray-800 text-black dark:text-slate-300 font-bold uppercase tracking-wider transition-all duration-100;
-    @apply hover:translate-x-1 hover:translate-y-1 hover:shadow-none;
-    box-shadow: 4px 4px 0px 0px #000;
+    @apply px-3 py-3 border-[1px] border-black dark:border-gray-300 bg-white dark:bg-gray-800 text-black dark:text-slate-300 font-bold uppercase tracking-wider transition-all duration-200;
+    @apply hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none;
+    box-shadow: 3px 3px 0px 0px #000;
   }
 
   .dark .brutalist-button {
-    box-shadow: 4px 4px 0px 0px #777777ff;
+    @apply hover:shadow-none;
+    box-shadow: 3px 3px 0px 0px #777777ff;
   }
 
   .brutalist-card {
-    @apply border-2 border-black dark:border-gray-300 bg-white dark:bg-gray-800 p-4;
-    box-shadow: 4px 4px 0px 0px #000;
+    @apply border-[1px] border-black dark:border-gray-300 bg-white dark:bg-gray-800 p-4;
+    box-shadow: 3px 3px 0px 0px #000;
   }
 
   .dark .brutalist-card {
@@ -40,10 +41,10 @@
   }
 
   .brutalist-input {
-    @apply border-2 border-black dark:border-gray-300 bg-white dark:bg-black text-black dark:text-slate-300 px-4 py-2 font-mono;
+    @apply border-[1px] border-black dark:border-gray-300 bg-white dark:bg-black text-black dark:text-slate-300 px-4 py-2 font-mono;
   }
 
   .brutalist-select {
-    @apply border-2 border-black dark:border-gray-300 bg-white dark:bg-black text-black dark:text-slate-300 px-4 py-3 font-mono cursor-pointer;
+    @apply border-[1px] border-black dark:border-gray-300 bg-white dark:bg-black text-black dark:text-slate-300 px-4 py-3 font-mono cursor-pointer;
   }
 }

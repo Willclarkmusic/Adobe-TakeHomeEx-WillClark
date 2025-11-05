@@ -8,6 +8,7 @@ import CampaignPage from "./pages/CampaignPage";
 import PostsPage from "./pages/PostsPage";
 import MoodBoardPage from "./pages/MoodBoardPage";
 import MetricsPage from "./pages/MetricsPage";
+import DeployPage from "./pages/DeployPage";
 
 /**
  * Main App component with router
@@ -238,6 +239,10 @@ function App() {
             <Route
               path="/metrics"
               element={<MetricsPage selectedCampaign={selectedCampaign} />}
+            />
+            <Route
+              path="/deploy"
+              element={<DeployPage selectedCampaign={selectedCampaign} />}
             />
           </Routes>
 
