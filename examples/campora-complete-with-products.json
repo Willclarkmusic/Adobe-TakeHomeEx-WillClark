@@ -54,11 +54,6 @@
       "image_path": "examples/Campora_assets/product_stove1.webp"
     },
     {
-      "name": "Basecamp 3-Season Tent",
-      "description": "Ultralight 2-person tent with vestibule and freestanding design. Weighs only 2.8kg with excellent wind resistance and quick setup.",
-      "image_path": "examples/Campora_assets/product_tent1.avif"
-    },
-    {
       "name": "Alpine Expedition 4-Season Tent",
       "description": "Robust 4-season mountaineering tent designed for harsh conditions. Features geodesic dome structure, reinforced poles, and exceptional snow load capacity.",
       "image_path": "examples/Campora_assets/product_tent2.webp"
