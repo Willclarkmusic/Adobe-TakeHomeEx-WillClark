@@ -26,6 +26,12 @@ logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
+ASPECT_RATIO_MAP = {
+    "1:1": "1-1",
+    "16:9": "16-9",
+    "9:16": "9-16"
+}
+
 
 def _sanitize_filename(name: str) -> str:
     """
@@ -155,15 +161,15 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
     logger.info(f"   📸 Source images: {request.source_images}")
 
     # 1. Fetch campaign data
-    logger.info("📂 Step 1: Fetching campaign data...")
+    logger.info("Step 1: Fetching campaign data...")
     campaign = db.query(Campaign).filter(Campaign.id == request.campaign_id).first()
     if not campaign:
-        logger.error(f"❌ Campaign not found: {request.campaign_id}")
+        logger.error(f"  Campaign not found: {request.campaign_id}")
         raise HTTPException(status_code=404, detail="Campaign not found")
-    logger.info(f"✅ Campaign found: {campaign.name}")
+    logger.info(f"  Campaign found: {campaign.name}")
 
     # 2. Load source images and determine their origins
-    logger.info(f"📦 Step 2: Loading {len(request.source_images)} source image(s)...")
+    logger.info(f"Step 2: Loading {len(request.source_images)} source image(s)...")
     from PIL import Image as PILImage
     from pathlib import Path
     import random
@@ -197,7 +203,7 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         if img_full_path.exists():
             pil_img = PILImage.open(img_full_path)
             source_pil_images.append(pil_img)
-            logger.info(f"   ✅ Loaded: {clean_path} ({pil_img.size})")
+            logger.info(f"   Loaded: {clean_path} ({pil_img.size})")
         else:
             logger.error(f"   ❌ Image not found: {clean_path}")
             raise HTTPException(status_code=404, detail=f"Source image not found: {clean_path}")
@@ -205,12 +211,12 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
     if not source_pil_images:
         raise HTTPException(status_code=400, detail="No valid source images provided")
 
-    logger.info(f"✅ Loaded {len(source_pil_images)} source image(s)")
-    logger.info(f"   📍 product_id: {product_id}, mood_id: {mood_id}")
+    logger.info(f"Loaded {len(source_pil_images)} source image(s)")
+    logger.info(f"  product_id: {product_id}, mood_id: {mood_id}")
 
     try:
         # 3. Generate text content using Gemini
-        logger.info("🤖 Step 3: Generating text content with Gemini 2.5 Flash...")
+        logger.info("Step 3: Generating text content with Gemini 2.5 Flash...")
         gemini_service = GeminiService()
 
         # Get product info if available, otherwise use generic description
@@ -237,12 +243,12 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         caption = text_content["caption"]
         text_color = text_content["text_color"]
 
-        logger.info(f"✅ Text generated successfully!")
-        logger.info(f"   📝 Headline: {headline}")
-        logger.info(f"   🎨 Text Color: {text_color}")
+        logger.info("Text generated successfully!")
+        logger.info(f"   Headline: {headline}")
+        logger.info(f"   Text Color: {text_color}")
 
         # 4. Generate images for selected aspect ratios using Gemini + compositing
-        logger.info(f"🖼️  Step 4: Generating images for {len(request.aspect_ratios)} aspect ratio(s)...")
+        logger.info(f"Step 4: Generating images for {len(request.aspect_ratios)} aspect ratio(s)...")
 
         # RANDOM LOGO SELECTION - Pick once, use for all aspect ratios
         image_compositor = ImageCompositor()
@@ -250,42 +256,36 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         selected_brand_logo = random.choice(brand_images) if brand_images else None
 
         if selected_brand_logo:
-            logger.info(f"   🎲 Randomly selected brand logo: {selected_brand_logo}")
+            logger.info(f"   Randomly selected brand logo: {selected_brand_logo}")
         else:
-            logger.info(f"   ⚠️  No brand images available for logo overlay")
+            logger.info("   No brand images available for logo overlay")
 
-        logger.info(f"   📸 Will generate from {len(source_pil_images)} source image(s)")
+        logger.info(f"   Will generate from {len(source_pil_images)} source image(s)")
 
         image_paths = {}
-        aspect_ratio_map = {
-            "1:1": "1-1",
-            "16:9": "16-9",
-            "9:16": "9-16"
-        }
 
         # Determine generation strategy: Single image = img2img, Multiple = composition
         use_composition = len(source_pil_images) > 1
-        logger.info(f"   🎯 Strategy: {'Composition' if use_composition else 'Image Transformation (img2img)'}")
 
         # Track the first generated image for consistency across aspect ratios
         base_generated_image = None
         first_aspect_ratio = True
 
         for aspect_ratio in request.aspect_ratios:
-            if aspect_ratio not in aspect_ratio_map:
+            if aspect_ratio not in ASPECT_RATIO_MAP:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid aspect ratio: {aspect_ratio}. Must be one of: 1:1, 16:9, 9:16"
                 )
 
-            logger.info(f"   🎨 Processing {aspect_ratio} image...")
+            logger.info(f"   Processing {aspect_ratio} image...")
 
             # Step 4a: Generate image with Gemini
             if first_aspect_ratio:
                 if use_composition:
                     # COMPOSITION: Blend multiple source images
                     # generate_mood_image returns bytes, convert to PIL Image
-                    logger.info(f"      🎨 Step 4a: Composing {len(request.source_images)} images with Gemini...")
+                    logger.info(f"      Step 4a: Composing {len(request.source_images)} images with Gemini...")
                     image_bytes = await gemini_service.generate_mood_image(
                         source_images=request.source_images,  # Pass paths as strings
                         prompt=f"{campaign.campaign_message}. {request.prompt}. Headline: {headline}",
@@ -294,11 +294,11 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
                     # Convert bytes to PIL Image
                     from io import BytesIO
                     generated_image = PILImage.open(BytesIO(image_bytes))
-                    logger.info(f"      ✅ Composition generated!")
+                    logger.info("      Composition generated!")
                 else:
                     # IMG2IMG: Transform single source image
                     # generate_product_image returns PIL Image directly
-                    logger.info(f"      🤖 Step 4a: Transforming source image with Gemini...")
+                    logger.info("      Step 4a: Transforming source image with Gemini...")
                     generated_image = await gemini_service.generate_product_image(
                         product_image=source_pil_images[0],  # Pass PIL object
                         campaign_message=campaign.campaign_message,
@@ -306,25 +306,25 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
                         user_prompt=request.prompt,
                         aspect_ratio=aspect_ratio
                     )
-                    logger.info(f"      ✅ Image transformed!")
+                    logger.info("      ✅ Image transformed!")
 
                 base_generated_image = generated_image
                 first_aspect_ratio = False
             else:
                 # Subsequent ratios: Adapt the base image to new aspect ratio
-                logger.info(f"      🔄 Step 4a: Adapting base image to {aspect_ratio}...")
+                logger.info(f"      Step 4a: Adapting base image to {aspect_ratio}...")
                 generated_image = await gemini_service.generate_product_image_adaptation(
                     base_image=base_generated_image,
                     headline=headline,
                     new_aspect_ratio=aspect_ratio
                 )
-                logger.info(f"      ✅ Image adapted!")
+                logger.info("      ✅ Image adapted!")
 
-            filename_ratio = aspect_ratio_map[aspect_ratio]
+            filename_ratio = ASPECT_RATIO_MAP[aspect_ratio]
             output_filename = f"image_{filename_ratio}.png"
 
             # Step 4b: Composite logo and border onto Gemini image
-            logger.info(f"      🖼️  Step 4b: Adding logo {'('+selected_brand_logo+')' if selected_brand_logo else ''} and border...")
+            logger.info("      Step 4b: Adding logo and border...")
 
             image_path = await image_compositor.create_post_image(
                 aspect_ratio=aspect_ratio,
@@ -339,7 +339,7 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
             logger.info(f"   ✅ {aspect_ratio} image complete and saved to: {image_path}")
 
         # 5. Create Post record in DB
-        logger.info("💾 Step 5: Saving post to database...")
+        logger.info("Step 5: Saving post to database...")
         post_id = str(uuid.uuid4())
         db_post = Post(
             id=post_id,
@@ -361,13 +361,13 @@ async def generate_post(request: PostGenerateRequest, db: Session = Depends(get_
         db.commit()
         db.refresh(db_post)
 
-        logger.info(f"🎉 Post generation complete! Post ID: {post_id}")
+        logger.info(f"Post generation complete! Post ID: {post_id}")
         return db_post
 
-    except ValueError as e:
+    except ValueError as _:
         # Handle Gemini API errors
-        logger.error(f"❌ AI generation failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"AI generation failed: {str(e)}")
+        logger.error(f"❌ AI generation failed: {str(_)}")
+        raise HTTPException(status_code=400, detail=f"AI generation failed: {str(_)}")
     except Exception as e:
         # Handle other errors
         logger.error(f"❌ Post generation failed: {str(e)}", exc_info=True)
@@ -452,46 +452,49 @@ async def regenerate_post_images(
 
     try:
         # 4. Load product image
-        if product.image_path:
-            logger.info(f"   📦 Loading product image: {product.image_path}")
-            from PIL import Image as PILImage
+        from PIL import Image as PILImage
+        import random
 
+        if product.image_path:
+            logger.info(f"   Loading product image: {product.image_path}")
             product_img_path = files_dir / product.image_path.lstrip('/static/')
             product_pil_image = PILImage.open(product_img_path)
-            logger.info(f"   ✅ Product image loaded: {product_pil_image.size}")
+            logger.info(f"   Product image loaded: {product_pil_image.size}")
         else:
             product_pil_image = None
-            logger.info(f"   ⚠️  No product image available")
+            logger.info("   No product image available")
 
         # 5. Generate new images using existing headline, body, caption, color
         gemini_service = GeminiService()
         image_compositor = ImageCompositor()
         brand_images = json.loads(campaign.brand_images) if campaign.brand_images else []
 
+        # RANDOM LOGO SELECTION - Pick once, use for all aspect ratios
+        selected_brand_logo = random.choice(brand_images) if brand_images else None
+        if selected_brand_logo:
+            logger.info(f"   Randomly selected brand logo: {selected_brand_logo}")
+        else:
+            logger.info("   No brand images available for logo overlay")
+
         image_paths = {}
-        aspect_ratio_map = {
-            "1:1": "1-1",
-            "16:9": "16-9",
-            "9:16": "9-16"
-        }
 
         # Track the first generated image for consistency
         base_generated_image = None
         first_aspect_ratio = True
 
         for aspect_ratio in request.aspect_ratios:
-            if aspect_ratio not in aspect_ratio_map:
+            if aspect_ratio not in ASPECT_RATIO_MAP:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid aspect ratio: {aspect_ratio}"
                 )
 
-            logger.info(f"   🎨 Processing {aspect_ratio} image...")
+            logger.info(f"   Processing {aspect_ratio} image...")
 
             # Generate or adapt image
             if product_pil_image:
                 if first_aspect_ratio:
-                    logger.info(f"      🤖 Generating base image from product...")
+                    logger.info("      Generating base image from product...")
                     generated_image = await gemini_service.generate_product_image(
                         product_image=product_pil_image,
                         campaign_message=campaign.campaign_message,
@@ -501,28 +504,28 @@ async def regenerate_post_images(
                     )
                     base_generated_image = generated_image
                     first_aspect_ratio = False
-                    logger.info(f"      ✅ Base image generated!")
+                    logger.info("      ✅ Base image generated!")
                 else:
-                    logger.info(f"      🔄 Adapting base image to {aspect_ratio}...")
+                    logger.info(f"      Adapting base image to {aspect_ratio}...")
                     generated_image = await gemini_service.generate_product_image_adaptation(
                         base_image=base_generated_image,
                         headline=db_post.headline,
                         new_aspect_ratio=aspect_ratio
                     )
-                    logger.info(f"      ✅ Image adapted!")
+                    logger.info("      ✅ Image adapted!")
             else:
                 generated_image = None
-                logger.info(f"      ⚠️  No product image")
+                logger.info("      No product image")
 
-            filename_ratio = aspect_ratio_map[aspect_ratio]
+            filename_ratio = ASPECT_RATIO_MAP[aspect_ratio]
             output_filename = f"image_{filename_ratio}.png"
 
             # Composite logo and border
-            logger.info(f"      🖼️  Adding logo and border...")
+            logger.info("      Adding logo and border...")
             image_path = await image_compositor.create_post_image(
                 aspect_ratio=aspect_ratio,
                 generated_image=generated_image,
-                brand_images=brand_images,
+                brand_logo=selected_brand_logo,
                 campaign_name=campaign.name,
                 post_headline=db_post.headline,
                 output_filename=output_filename

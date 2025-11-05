@@ -1,6 +1,6 @@
 """
+-------------------------NOT IN USE-------------------------
 Google Cloud Storage Service for managing mood media files.
-
 Handles uploading and deleting mood media to/from GCS bucket.
 Provides fallback to local-only storage if GCS credentials not configured.
 """
@@ -21,12 +21,6 @@ GCS_CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
 
 # Check if GCS is enabled (need bucket + project + credentials)
 GCS_ENABLED = bool(GCS_BUCKET_NAME and GCS_PROJECT_ID and (GCS_CREDENTIALS_JSON or GCS_CREDENTIALS_PATH))
-
-logger.info(f"🔍 GCS Configuration Check:")
-logger.info(f"    GCS_BUCKET_NAME: {GCS_BUCKET_NAME if GCS_BUCKET_NAME else 'NOT SET'}")
-logger.info(f"    GCS_PROJECT_ID: {GCS_PROJECT_ID if GCS_PROJECT_ID else 'NOT SET'}")
-logger.info(f"    GCS_CREDENTIALS_JSON: {'SET (%d chars)' % len(GCS_CREDENTIALS_JSON) if GCS_CREDENTIALS_JSON else 'NOT SET'}")
-logger.info(f"    GCS_CREDENTIALS_PATH: {GCS_CREDENTIALS_PATH if GCS_CREDENTIALS_PATH else 'NOT SET'}")
 logger.info(f"    GCS_ENABLED: {GCS_ENABLED}")
 
 if GCS_ENABLED:
@@ -38,7 +32,6 @@ if GCS_ENABLED:
         GCS_ENABLED = False
 else:
     logger.warning("⚠️ GCS not configured in .env - mood media will only be stored locally")
-    logger.warning("⚠️ Veo video generation with reference images will not work")
 
 
 class GCSService:
@@ -64,9 +57,10 @@ class GCSService:
                             credentials_dict,
                             project=GCS_PROJECT_ID
                         )
-                        logger.info(f"✅ GCS client initialized from embedded JSON credentials")
-                    except json.JSONDecodeError as e:
-                        logger.error(f"❌ Invalid GCS_CREDENTIALS_JSON format: {str(e)}")
+                        logger.info("GCS client initialized from embedded JSON credentials")
+
+                    except json.JSONDecodeError as _:
+                        logger.error(f"Invalid GCS_CREDENTIALS_JSON format: {str(_)}")
                         self.enabled = False
                         return
                 elif GCS_CREDENTIALS_PATH and os.path.exists(GCS_CREDENTIALS_PATH):
@@ -75,14 +69,15 @@ class GCSService:
                         GCS_CREDENTIALS_PATH,
                         project=GCS_PROJECT_ID
                     )
-                    logger.info(f"✅ GCS client initialized from credentials file")
+                    logger.info("GCS client initialized from credentials file")
                 else:
                     # Use application default credentials
                     self.client = storage.Client(project=GCS_PROJECT_ID)
-                    logger.info(f"✅ GCS client initialized from default credentials")
+                    logger.info("GCS client initialized from default credentials")
 
                 self.bucket = self.client.bucket(GCS_BUCKET_NAME)
-                logger.info(f"✅ GCS bucket connected: {GCS_BUCKET_NAME}")
+                logger.info(f"GCS bucket connected: {GCS_BUCKET_NAME}")
+                
             except Exception as e:
                 logger.error(f"❌ Failed to initialize GCS client: {str(e)}")
                 self.enabled = False
@@ -90,57 +85,43 @@ class GCSService:
     def upload_mood_file(self, file_data: bytes, filename: str, content_type: str) -> Optional[str]:
         """
         Upload mood media file to GCS bucket in /moods/ folder.
-
-        Args:
-            file_data: Binary file data
-            filename: Filename (e.g., "campaign_img_20250111_143022_1-1.png")
-            content_type: MIME type (e.g., "image/png", "video/mp4")
-
-        Returns:
-            GCS URI (gs://bucket/moods/filename) or None if GCS disabled/failed
         """
         if not self.enabled:
-            logger.error(f"  ❌ GCS not enabled - cannot upload {filename}")
-            logger.error(f"  ❌ Check .env configuration:")
-            logger.error(f"      GCS_BUCKET_NAME: {'SET' if GCS_BUCKET_NAME else 'MISSING'}")
-            logger.error(f"      GCS_PROJECT_ID: {'SET' if GCS_PROJECT_ID else 'MISSING'}")
-            logger.error(f"      GCS_CREDENTIALS_JSON: {'SET' if GCS_CREDENTIALS_JSON else 'MISSING'}")
-            logger.error(f"      GCS_CREDENTIALS_PATH: {'SET' if GCS_CREDENTIALS_PATH else 'MISSING'}")
+            logger.error(f"❌ GCS not enabled - cannot upload {filename}")
+            logger.error("❌ Check .env configuration:")
+            logger.error(f"    GCS_BUCKET_NAME: {'SET' if GCS_BUCKET_NAME else 'MISSING'}")
+            logger.error(f"    GCS_PROJECT_ID: {'SET' if GCS_PROJECT_ID else 'MISSING'}")
+            logger.error(f"    GCS_CREDENTIALS_JSON: {'SET' if GCS_CREDENTIALS_JSON else 'MISSING'}")
+            logger.error(f"    GCS_CREDENTIALS_PATH: {'SET' if GCS_CREDENTIALS_PATH else 'MISSING'}")
             return None
 
         try:
             # Upload to /moods/ folder
             blob_path = f"moods/{filename}"
-            logger.info(f"  🔄 Uploading to bucket: {self.bucket_name}, path: {blob_path}")
+            logger.info(f"Uploading to bucket: {self.bucket_name}, path: {blob_path}")
             blob = self.bucket.blob(blob_path)
 
             # Upload with content type
             blob.upload_from_string(file_data, content_type=content_type)
 
-            # Make publicly readable (optional - remove if you want private files)
+            # Make publicly readable (optional - removes private files)
             # blob.make_public()
 
             gcs_uri = f"gs://{self.bucket_name}/{blob_path}"
             logger.info(f"  ✅ Uploaded to GCS: {gcs_uri}")
             return gcs_uri
 
-        except Exception as e:
-            logger.error(f"  ❌ GCS upload failed for {filename}")
-            logger.error(f"  ❌ Error type: {type(e).__name__}")
-            logger.error(f"  ❌ Error message: {str(e)}")
+        except Exception as _:
+            logger.error(f"GCS upload failed for {filename}")
+            logger.error(f"Error type: {type(_).__name__}")
+            logger.error(f"Error message: {str(_)})")
             import traceback
-            logger.error(f"  ❌ Traceback: {traceback.format_exc()}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def delete_mood_file(self, gcs_uri: str) -> bool:
         """
         Delete mood media file from GCS bucket.
-
-        Args:
-            gcs_uri: Full GCS URI (e.g., "gs://bucket/moods/file.png")
-
-        Returns:
-            True if deleted successfully, False otherwise
         """
         if not self.enabled or not gcs_uri:
             return False
@@ -149,7 +130,7 @@ class GCSService:
             # Extract blob path from URI
             # gs://bucket/moods/file.png -> moods/file.png
             if not gcs_uri.startswith(f"gs://{self.bucket_name}/"):
-                logger.warning(f"  ⚠️ Invalid GCS URI format: {gcs_uri}")
+                logger.warning(f"  Invalid GCS URI format: {gcs_uri}")
                 return False
 
             blob_path = gcs_uri.replace(f"gs://{self.bucket_name}/", "")
@@ -181,7 +162,7 @@ class GCSService:
             # Extract blob path from URI
             # gs://bucket/moods/file.png -> moods/file.png
             if not gcs_uri.startswith(f"gs://{self.bucket_name}/"):
-                logger.warning(f"  ⚠️ Invalid GCS URI format: {gcs_uri}")
+                logger.warning(f"Invalid GCS URI format: {gcs_uri}")
                 return None
 
             blob_path = gcs_uri.replace(f"gs://{self.bucket_name}/", "")
@@ -189,11 +170,11 @@ class GCSService:
 
             # Download blob
             file_data = blob.download_as_bytes()
-            logger.info(f"  ✅ Downloaded from GCS: {gcs_uri} ({len(file_data)} bytes)")
+            logger.info(f"Downloaded from GCS: {gcs_uri} ({len(file_data)} bytes)")
             return file_data
 
         except Exception as e:
-            logger.error(f"  ❌ GCS download failed: {str(e)}")
+            logger.error(f"GCS download failed: {str(e)}")
             return None
 
     def is_enabled(self) -> bool:

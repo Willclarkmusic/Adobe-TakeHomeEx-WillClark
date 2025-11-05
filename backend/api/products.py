@@ -24,13 +24,6 @@ router = APIRouter()
 async def get_products(campaign_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
     """
     Get all products, optionally filtered by campaign_id.
-
-    Args:
-        campaign_id: Optional campaign ID to filter products
-        db: Database session
-
-    Returns:
-        List of products (filtered by campaign if provided)
     """
     query = db.query(Product)
     if campaign_id:
@@ -45,12 +38,6 @@ async def validate_product(data: dict = Body(...)):
     """
     Validate product data from JSON upload.
     Returns partial data and missing required fields.
-
-    Args:
-        data: Product data dictionary
-
-    Returns:
-        Validation response with data and missing fields
     """
     required_fields = ["name", "campaign_id"]
     missing_fields = [field for field in required_fields if not data.get(field)]
@@ -67,12 +54,6 @@ async def validate_products_batch(data: List[dict] = Body(...)):
     """
     Validate multiple products from batch JSON upload.
     Returns validation results for all products.
-
-    Args:
-        data: List of product data dictionaries
-
-    Returns:
-        Batch validation response with valid and invalid products
     """
     required_fields = ["name", "campaign_id"]
     valid_products = []
@@ -102,17 +83,6 @@ async def create_products_batch(batch_data: ProductBatchCreate, db: Session = De
     """
     Create multiple products in a single transaction.
     All products must be valid or the entire batch fails (transaction rollback).
-
-    Args:
-        batch_data: Batch create request with list of products
-        db: Database session
-
-    Returns:
-        List of created products
-
-    Raises:
-        404: If any campaign not found
-        500: If any product creation fails
     """
     created_products = []
 
@@ -169,16 +139,6 @@ async def create_products_batch(batch_data: ProductBatchCreate, db: Session = De
 async def create_product(product: ProductCreate, db: Session = Depends(get_db)):
     """
     Create a new product.
-
-    Args:
-        product: Product data from request body
-        db: Database session
-
-    Returns:
-        Created product
-
-    Raises:
-        404: If campaign not found
     """
     # Verify campaign exists
     campaign = db.query(Campaign).filter(Campaign.id == product.campaign_id).first()
@@ -213,16 +173,6 @@ async def create_product(product: ProductCreate, db: Session = Depends(get_db)):
 async def get_products_by_campaign(campaign_id: str, db: Session = Depends(get_db)):
     """
     Get all products for a specific campaign.
-
-    Args:
-        campaign_id: Campaign ID
-        db: Database session
-
-    Returns:
-        List of products for the campaign
-
-    Raises:
-        404: If campaign not found
     """
     # Verify campaign exists
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
@@ -240,16 +190,6 @@ async def get_products_by_campaign(campaign_id: str, db: Session = Depends(get_d
 async def get_product(product_id: str, db: Session = Depends(get_db)):
     """
     Get a specific product by ID.
-
-    Args:
-        product_id: Product ID
-        db: Database session
-
-    Returns:
-        Product details
-
-    Raises:
-        404: If product not found
     """
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
@@ -269,17 +209,6 @@ async def update_product(
 ):
     """
     Update an existing product.
-
-    Args:
-        product_id: Product ID
-        product_update: Fields to update
-        db: Database session
-
-    Returns:
-        Updated product
-
-    Raises:
-        404: If product not found
     """
     db_product = db.query(Product).filter(Product.id == product_id).first()
     if not db_product:
@@ -308,13 +237,6 @@ async def update_product(
 async def delete_product(product_id: str, db: Session = Depends(get_db)):
     """
     Delete a product.
-
-    Args:
-        product_id: Product ID
-        db: Database session
-
-    Raises:
-        404: If product not found
     """
     db_product = db.query(Product).filter(Product.id == product_id).first()
     if not db_product:
@@ -337,21 +259,8 @@ async def regenerate_product_image(
 ):
     """
     Regenerate a product image using AI when the current image is missing or unreadable.
-
     Uses Google Gemini to generate a professional product photo from the product's
     name and description.
-
-    Args:
-        product_id: Product ID
-        request: Optional user prompt for style guidance
-        db: Database session
-
-    Returns:
-        Updated product with new image_path
-
-    Raises:
-        404: If product not found
-        500: If image generation or save fails
     """
     # Fetch the product
     db_product = db.query(Product).filter(Product.id == product_id).first()
@@ -362,7 +271,7 @@ async def regenerate_product_image(
         )
 
     try:
-        print(f"🎨 Regenerating image for product: {db_product.name}")
+        print(f"Regenerating image for product: {db_product.name}")
 
         # Initialize Gemini service
         gemini_service = GeminiService()
@@ -374,7 +283,7 @@ async def regenerate_product_image(
             user_prompt=request.user_prompt
         )
 
-        print(f"✅ Image generated successfully")
+        print("✅ Image generated successfully")
 
         # Save the generated image
         new_image_path = await save_generated_product_image(
@@ -382,21 +291,21 @@ async def regenerate_product_image(
             product_name=db_product.name
         )
 
-        print(f"✅ Image saved to: {new_image_path}")
+        print(f"Image saved to: {new_image_path}")
 
         # Update product with new image path
         db_product.image_path = new_image_path
         db.commit()
         db.refresh(db_product)
 
-        print(f"✅ Product updated with new image path")
+        print("✅ Product updated with new image path")
 
         return db_product
 
-    except Exception as e:
+    except Exception as _:
         db.rollback()
-        print(f"❌ Image regeneration failed: {str(e)}")
+        print(f"Image regeneration failed: {str(_)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to regenerate product image: {str(e)}"
+            detail=f"Failed to regenerate product image: {str(_)}"
         )

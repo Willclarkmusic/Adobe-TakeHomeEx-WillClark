@@ -30,13 +30,6 @@ router = APIRouter(prefix="/api/moods", tags=["moods"])
 async def list_mood_media(campaign_id: str, db: Session = Depends(get_db)):
     """
     Get all mood media for a campaign, ordered by created_at descending (newest first).
-
-    Args:
-        campaign_id: Campaign ID to filter by
-        db: Database session
-
-    Returns:
-        List of MoodMediaRead objects
     """
     logger.info(f"📋 Fetching mood media for campaign {campaign_id}")
 
@@ -56,18 +49,7 @@ async def generate_mood_images(
 ):
     """
     Generate 1-3 mood board images (one per ratio).
-
     Each ratio generates a completely separate image with distinct styling.
-
-    Args:
-        request: Generation request with campaign_id, prompt, source_images, ratios
-        db: Database session
-
-    Returns:
-        List of created MoodMediaRead objects (one per ratio)
-
-    Raises:
-        HTTPException: If validation fails or generation errors occur
     """
     logger.info(f"🎨 Generating mood images for campaign {request.campaign_id}")
     logger.info(f"  Ratios: {request.ratios}")
@@ -136,16 +118,6 @@ async def generate_mood_video(
     Generate mood board video with Veo.
 
     This is an async operation that may take 30-60 seconds to complete.
-
-    Args:
-        request: Video generation request
-        db: Database session
-
-    Returns:
-        Created MoodMediaRead object
-
-    Raises:
-        HTTPException: If validation fails or generation errors occur
     """
     logger.info(f"🎬 Generating mood video for campaign {request.campaign_id}")
     logger.info(f"  Ratio: {request.ratio}, Duration: {request.duration}s")
@@ -194,7 +166,7 @@ async def generate_mood_video(
             db=db
         )
 
-        logger.info(f"✅ Successfully generated mood video")
+        logger.info("✅ Successfully generated mood video")
         return mood_media
 
     except ValueError as e:
@@ -227,17 +199,6 @@ async def upload_mood_media(
     Upload mood media file manually (is_generated=False).
 
     Accepts images and videos. Uploaded files are saved with date-stamped filenames.
-
-    Args:
-        campaign_id: Campaign ID
-        file: Uploaded file
-        db: Database session
-
-    Returns:
-        Created MoodMediaRead object
-
-    Raises:
-        HTTPException: If file type invalid or upload fails
     """
     logger.info(f"📤 Uploading mood media for campaign {campaign_id}")
     logger.info(f"  File: {file.filename}, Type: {file.content_type}")
@@ -305,7 +266,7 @@ async def upload_mood_media(
         db.commit()
         db.refresh(mood_media)
 
-        logger.info(f"✅ Successfully uploaded mood media")
+        logger.info("✅ Successfully uploaded mood media")
         return mood_media
 
     except Exception as e:
@@ -320,13 +281,6 @@ async def upload_mood_media(
 async def delete_mood_media(mood_id: str, db: Session = Depends(get_db)):
     """
     Delete mood media from both database and filesystem.
-
-    Args:
-        mood_id: Mood media ID
-        db: Database session
-
-    Raises:
-        HTTPException: If mood media not found
     """
     logger.info(f"🗑️ Deleting mood media {mood_id}")
 
@@ -346,7 +300,7 @@ async def delete_mood_media(mood_id: str, db: Session = Depends(get_db)):
         db.delete(mood)
         db.commit()
 
-        logger.info(f"✅ Successfully deleted mood media")
+        logger.info("✅ Successfully deleted mood media")
         return None
 
     except Exception as e:
@@ -363,13 +317,6 @@ async def get_available_images(campaign_id: str, db: Session = Depends(get_db)):
     Get available images for mood generation (products + existing mood images).
 
     Used by MoodPopup component to show selectable images.
-
-    Args:
-        campaign_id: Campaign ID
-        db: Database session
-
-    Returns:
-        MoodAvailableImagesResponse with products and mood_images lists
     """
     logger.info(f"📷 Fetching available images for campaign {campaign_id}")
 

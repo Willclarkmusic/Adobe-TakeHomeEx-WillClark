@@ -1,13 +1,13 @@
 """
 File management service for handling image uploads and URL downloads.
 """
-import os
 import uuid
 import shutil
 from pathlib import Path
 from typing import Optional
 import httpx
 from fastapi import UploadFile
+import re
 
 
 # Base directories
@@ -295,10 +295,6 @@ def save_mood_video(video_data: bytes, filename: str) -> str:
 def delete_mood_file(file_path: str) -> bool:
     """
     Delete mood media file from filesystem.
-
-    Args:
-        file_path: Relative path (e.g., "moods/Summer2025_img_20250111_143022_1-1.png")
-
     Returns:
         True if successful, False otherwise
     """
@@ -329,23 +325,13 @@ def delete_mood_file(file_path: str) -> bool:
 async def save_generated_product_image(image, product_name: str) -> str:
     """
     Save a generated product image to /files/media/ directory.
-
     Args:
         image: PIL Image object to save
         product_name: Product name (will be sanitized for filename)
-
     Returns:
         Relative path (e.g., "/static/media/product_Tent_abc123.png")
-
-    Raises:
-        Exception: If image save fails
     """
     try:
-        # Import PIL here to avoid circular imports
-        from PIL import Image as PILImage
-        import re
-        import io
-
         # Sanitize product name for filename
         # Remove special characters, replace spaces with underscores, lowercase
         sanitized_name = re.sub(r'[^\w\s-]', '', product_name)

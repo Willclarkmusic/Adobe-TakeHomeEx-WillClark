@@ -8,18 +8,14 @@ Handles interaction with Ayrshare API for:
 - Creating recurring posts with Auto Repost
 - Canceling scheduled posts
 """
-import os
 import logging
 import httpx
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 
-load_dotenv()
+from .config import get_settings
+
 logger = logging.getLogger(__name__)
-
-AYRSHARE_API_KEY = os.getenv("AYRSHARE_API_KEY")
-AYRSHARE_BASE_URL = "https://app.ayrshare.com/api"
 
 
 class AyrshareService:
@@ -29,18 +25,14 @@ class AyrshareService:
 
     def __init__(self):
         """Initialize Ayrshare service with API key."""
-        if not AYRSHARE_API_KEY:
+        settings = get_settings()
+
+        if not settings.AYRSHARE_API_KEY:
             raise ValueError("AYRSHARE_API_KEY not found in environment variables")
 
         # Strip whitespace and quotes that might be in .env file
-        self.api_key = AYRSHARE_API_KEY.strip().strip('"').strip("'")
-        self.base_url = AYRSHARE_BASE_URL
-
-        # Debug: Log API key (first/last 4 chars only for security)
-        if len(self.api_key) > 8:
-            logger.info(f"  🔑 Using API Key: {self.api_key[:4]}...{self.api_key[-4:]} (length: {len(self.api_key)})")
-        else:
-            logger.warning(f"  ⚠️ API Key seems too short: {len(self.api_key)} chars - '{self.api_key}'")
+        self.api_key = settings.AYRSHARE_API_KEY.strip().strip('"').strip("'")
+        self.base_url = settings.AYRSHARE_BASE_URL
 
         # Ayrshare uses Bearer authentication
         self.headers = {
@@ -51,12 +43,6 @@ class AyrshareService:
     async def get_profiles(self) -> List[Dict[str, Any]]:
         """
         Get all connected social media profiles from Ayrshare.
-
-        Returns:
-            List of profile dictionaries with platform, username, etc.
-
-        Raises:
-            httpx.HTTPError: If API request fails
         """
         logger.info("📱 Fetching connected profiles from Ayrshare...")
 
@@ -83,19 +69,19 @@ class AyrshareService:
 
                 response.raise_for_status()
                 data = response.json()
-                logger.info(f"  ✓ API call successful")
+                logger.info("API call successful")
 
-            except httpx.HTTPStatusError as e:
-                logger.error(f"  HTTP Error: {e}")
+            except httpx.HTTPStatusError as _:
+                logger.error(f"HTTP Error: {_}")
                 raise
-            except Exception as e:
-                logger.error(f"  Unexpected error: {e}")
+            except Exception as _:
+                logger.error(f"Unexpected error: {_}")
                 raise
 
         # Ayrshare returns profiles in data.displayNames (list of profile objects)
         # activeSocialAccounts is just a list of platform names ['twitter', 'facebook', etc]
         profiles = data.get("displayNames", [])
-        logger.info(f"  ✓ Found {len(profiles)} connected profiles")
+        logger.info(f"  Found {len(profiles)} connected profiles")
 
         # Transform to our format
         transformed_profiles = []
@@ -119,17 +105,6 @@ class AyrshareService:
     ) -> Dict[str, Any]:
         """
         Post content immediately to social media (actually ~10 seconds from now).
-
-        Args:
-            post_text: Text content for the post
-            platforms: List of platform names (e.g., ["instagram", "facebook"])
-            media_urls: List of public image URLs (optional)
-
-        Returns:
-            Ayrshare API response with post ID and status
-
-        Raises:
-            httpx.HTTPError: If API request fails
         """
         logger.info(f"📤 Posting immediately to {platforms}...")
 
@@ -155,7 +130,7 @@ class AyrshareService:
             response.raise_for_status()
             data = response.json()
 
-        logger.info(f"  ✅ Posted successfully: {data.get('id', 'N/A')}")
+        logger.info("  Posted successfully")
         return data
 
     async def post_scheduled(
@@ -167,20 +142,8 @@ class AyrshareService:
     ) -> Dict[str, Any]:
         """
         Schedule a post for a specific future date/time.
-
-        Args:
-            post_text: Text content for the post
-            platforms: List of platform names
-            schedule_time: When to post (datetime object)
-            media_urls: List of public image URLs (optional)
-
-        Returns:
-            Ayrshare API response with post ID and status
-
-        Raises:
-            httpx.HTTPError: If API request fails
         """
-        logger.info(f"📅 Scheduling post for {schedule_time.isoformat()} on {platforms}...")
+        logger.info(f"Scheduling post for {schedule_time.isoformat()} on {platforms}.")
 
         payload = {
             "post": post_text,
@@ -215,21 +178,6 @@ class AyrshareService:
     ) -> Dict[str, Any]:
         """
         Create recurring post using Ayrshare Auto Repost feature.
-
-        Args:
-            post_text: Text content for the post
-            platforms: List of platform names
-            repeat: Number of times to repeat (1-10)
-            days_interval: Interval between posts in days (2+)
-            start_time: When to start posting
-            media_urls: List of public image URLs (optional)
-
-        Returns:
-            Ayrshare API response with post ID and status
-
-        Raises:
-            httpx.HTTPError: If API request fails
-            ValueError: If repeat or days_interval is invalid
         """
         logger.info(f"🔁 Creating recurring post: {repeat} times every {days_interval} days on {platforms}...")
 
@@ -262,21 +210,12 @@ class AyrshareService:
             response.raise_for_status()
             data = response.json()
 
-        logger.info(f"  ✅ Recurring post created: {data.get('id', 'N/A')}")
+        logger.info(f"  Recurring post created: {data.get('id', 'N/A')}")
         return data
 
     async def delete_post(self, ayrshare_post_id: str) -> Dict[str, Any]:
         """
         Delete/cancel a scheduled or recurring post.
-
-        Args:
-            ayrshare_post_id: Ayrshare post ID to delete
-
-        Returns:
-            Ayrshare API response
-
-        Raises:
-            httpx.HTTPError: If API request fails
         """
         logger.info(f"🗑️ Deleting post {ayrshare_post_id}...")
 
@@ -292,21 +231,12 @@ class AyrshareService:
             response.raise_for_status()
             data = response.json()
 
-        logger.info(f"  ✅ Post deleted successfully")
+        logger.info("  ✅ Post deleted successfully")
         return data
 
     async def get_post_status(self, ayrshare_post_id: str) -> Dict[str, Any]:
         """
         Get status of a specific post.
-
-        Args:
-            ayrshare_post_id: Ayrshare post ID
-
-        Returns:
-            Post status information
-
-        Raises:
-            httpx.HTTPError: If API request fails
         """
         logger.info(f"📊 Getting status for post {ayrshare_post_id}...")
 
@@ -319,5 +249,5 @@ class AyrshareService:
             response.raise_for_status()
             data = response.json()
 
-        logger.info(f"  ✓ Status retrieved: {data.get('status', 'unknown')}")
+        logger.info(f"  Status retrieved: {data.get('status', 'unknown')}")
         return data

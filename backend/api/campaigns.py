@@ -6,7 +6,7 @@ Handles all campaign-related endpoints.
 import json
 import uuid
 from typing import List
-from datetime import datetime, date
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from database import get_db

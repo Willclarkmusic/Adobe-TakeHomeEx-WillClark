@@ -21,8 +21,7 @@ from models.pydantic import (
     AyrshareProfilesResponse,
     AyrshareProfile,
     SchedulePostRequest,
-    ScheduledPostRead,
-    PostRead
+    ScheduledPostRead
 )
 from services.ayrshare_service import AyrshareService
 
@@ -34,12 +33,6 @@ router = APIRouter(prefix="/api/deploy", tags=["deploy"])
 async def get_connected_profiles():
     """
     Get all connected social media profiles from Ayrshare.
-
-    Returns:
-        AyrshareProfilesResponse with list of connected accounts
-
-    Raises:
-        HTTPException: If Ayrshare API call fails
     """
     logger.info("📱 Fetching connected social media profiles...")
 
@@ -65,21 +58,10 @@ async def schedule_post(
 ):
     """
     Schedule a social media post via Ayrshare.
-
     Supports three scheduling types:
     - immediate: Post ~10 seconds from now
     - scheduled: Post at specific future time
     - recurring: Auto-repost multiple times with interval
-
-    Args:
-        request: SchedulePostRequest with post details
-        db: Database session
-
-    Returns:
-        ScheduledPostRead with created scheduled post details
-
-    Raises:
-        HTTPException: If validation fails or Ayrshare API call fails
     """
     logger.info(f"📅 Scheduling post {request.post_id} ({request.schedule_type})...")
 
@@ -162,7 +144,7 @@ async def schedule_post(
             )
 
         elif request.schedule_type == "recurring":
-            logger.info(f"  🔁 Creating recurring post...")
+            logger.info("  🔁 Creating recurring post...")
             # For recurring posts, we need to handle multiple posts
             # Ayrshare Auto Repost feature only works with single post
             # So we'll schedule the first one and track the config
@@ -224,16 +206,6 @@ async def list_scheduled_posts(
 ):
     """
     Get all scheduled posts for a campaign.
-
-    Args:
-        campaign_id: Campaign ID to filter by
-        db: Database session
-
-    Returns:
-        List of ScheduledPostRead objects with nested post data
-
-    Raises:
-        HTTPException: If campaign not found
     """
     logger.info(f"📋 Fetching scheduled posts for campaign {campaign_id}...")
 
@@ -266,15 +238,7 @@ async def cancel_scheduled_post(
 ):
     """
     Cancel/delete a scheduled post.
-
     Deletes from both Ayrshare and local database.
-
-    Args:
-        scheduled_post_id: Scheduled post ID
-        db: Database session
-
-    Raises:
-        HTTPException: If scheduled post not found or deletion fails
     """
     logger.info(f"🗑️ Canceling scheduled post {scheduled_post_id}...")
 
@@ -300,12 +264,12 @@ async def cancel_scheduled_post(
         db.delete(scheduled_post)
         db.commit()
 
-        logger.info(f"✅ Successfully canceled scheduled post")
+        logger.info("✅ Successfully canceled scheduled post")
         return None
 
-    except Exception as e:
-        logger.error(f"❌ Failed to cancel post: {str(e)}")
+    except Exception as _:
+        logger.error(f"❌ Failed to cancel post: {str(_)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel scheduled post: {str(e)}"
+            detail=f"Failed to cancel scheduled post: {str(_)}"
         )

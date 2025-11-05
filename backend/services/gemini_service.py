@@ -4,127 +4,40 @@ Gemini AI Service for generating post copy and images.
 Uses Google's Gemini API to generate professional social media post content
 based on campaign and product information.
 """
-import os
 import json
 import re
 import logging
+import asyncio
+import os
 from typing import Dict, Optional
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from PIL import Image
 import io
-import asyncio
-import base64
 
-# Load environment variables
-load_dotenv()
+from .config import get_settings
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+##################################################
+# Global Variables
+##################################################
+DIMENSIONS_MAP = {
+    "1:1": "1080x1080 pixels (square)",
+    "16:9": "1920x1080 pixels (landscape)",
+    "9:16": "1080x1920 pixels (vertical/story format)"
+}
 
-class GeminiService:
-    """
-    Service for interacting with Google's Gemini API to generate post content.
-    """
+##################################################
+# Prompt Templates
+##################################################
+COPYWRITER_SYSTEM_PROMPT = """You are a professional social media copywriter
+    specializing in creative ad campaigns.
 
-    def __init__(self):
-        """
-        Initialize the Gemini service with API configuration.
-        """
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key or api_key == "your_gemini_api_key_here":
-            raise ValueError(
-                "GEMINI_API_KEY not set in environment variables. "
-                "Please add your API key to backend/.env file."
-            )
-
-        # Create client for new google-genai SDK
-        self.client = genai.Client(api_key=api_key)
-
-        # Model names for reference
-        self.text_model_name = 'gemini-2.5-flash'
-        self.image_model_name = 'gemini-2.5-flash-image'
-
-    async def generate_post_copy(
-        self,
-        campaign_message: str,
-        call_to_action: Optional[str],
-        target_region: str,
-        target_audience: str,
-        product_name: str,
-        product_description: Optional[str],
-        user_prompt: str
-    ) -> Dict[str, str]:
-        """
-        Generate post copy (headline, body_text, caption) using Gemini API.
-
-        Args:
-            campaign_message: The main campaign message
-            call_to_action: Campaign CTA
-            target_region: Target geographic region
-            target_audience: Target audience description
-            product_name: Name of the product
-            product_description: Product description
-            user_prompt: User's custom generation prompt
-
-        Returns:
-            Dict with keys: headline, body_text, caption
-
-        Raises:
-            Exception: If API call fails or response parsing fails
-        """
-        system_prompt = self.build_system_prompt(
-            campaign_message=campaign_message,
-            call_to_action=call_to_action,
-            target_region=target_region,
-            target_audience=target_audience,
-            product_name=product_name,
-            product_description=product_description,
-            user_prompt=user_prompt
-        )
-
-        try:
-            ##################################################
-            # Generate Text Content With Gemini
-            ##################################################
-            response = self.client.models.generate_content(
-                model=self.text_model_name,
-                contents=system_prompt
-            )
-
-            # Parse the response
-            result = self.parse_gemini_response(response.text)
-
-            return result
-
-        except Exception as e:
-            raise Exception(f"Failed to generate post copy: {str(e)}")
-
-    def build_system_prompt(
-        self,
-        campaign_message: str,
-        call_to_action: Optional[str],
-        target_region: str,
-        target_audience: str,
-        product_name: str,
-        product_description: Optional[str],
-        user_prompt: str
-    ) -> str:
-        """
-        Build a comprehensive system prompt for professional copywriting.
-
-        Returns:
-            A formatted prompt string for Gemini
-        """
-        cta_section = f"\n- Call to Action: {call_to_action}" if call_to_action else ""
-        desc_section = f"\n- Product Description: {product_description}" if product_description else ""
-
-        prompt = f"""You are a professional social media copywriter specializing in creative ad campaigns.
-        
-Generate compelling social media post content based on the following information:
+Generate compelling social media post content based on
+    the following information:
 
 CAMPAIGN INFORMATION:
 - Campaign Message: {campaign_message}{cta_section}
@@ -139,13 +52,17 @@ USER REQUEST:
 
 OUTPUT REQUIREMENTS:
 Generate a JSON object with exactly three fields:
-1. "headline": A short, punchy headline (max 60 characters) that grabs attention
-2. "body_text": Main post content (2-3 sentences, max 280 characters) that highlights key benefits
-3. "caption": An engaging social media caption (1-2 sentences, max 150 characters) with relevant tone
+1. "headline": A short, punchy headline (max 60 characters)
+    that grabs attention
+2. "body_text": Main post content (2-3 sentences, max 280 characters)
+    that highlights key benefits
+3. "caption": An engaging social media caption (1-2 sentences,
+    max 150 characters) with relevant tone
 
 STYLE GUIDELINES:
 - Match the tone to the target audience
-- Match the primary language of the region unless specified otherwise or if region is Global use English
+- Match the primary language of the region unless specified otherwise or if
+    region is Global use English
     - Here's the region: {target_region}
 - Incorporate the campaign message naturally
 - Make it platform-appropriate for Instagram/Facebook/LinkedIn
@@ -153,7 +70,8 @@ STYLE GUIDELINES:
 - Focus on benefits, not just features
 - Keep it concise and impactful
 
-IMPORTANT: Return ONLY a valid JSON object with no additional text or explanation. Format:
+IMPORTANT: Return ONLY a valid JSON object with no additional text
+    or explanation. Format:
 {{
 "headline": "Your headline here",
 "body_text": "Your body text here",
@@ -161,30 +79,238 @@ IMPORTANT: Return ONLY a valid JSON object with no additional text or explanatio
 "text_color": "#RRGGBB"
 }}
 
-The "text_color" field should be a hex color code for the headline background that:
+The "text_color" should be a hex color code for the headline background that:
 - Complements the campaign/product vibe
 - Provides high contrast for white text
 - Is bold, vibrant, and eye-catching for social media
-- Examples: "#FF4081" (hot pink), "#00BCD4" (cyan), "#FF6F00" (orange), "#8E24AA" (purple)"""
+- Examples: "#FF4081" (hot pink), "#00BCD4" (cyan),
+    "#FF6F00" (orange), "#8E24AA" (purple)"""
 
-        return prompt
+IMAGE_ADAPTATION_PROMPT = """Adapt this image to a new aspect ratio while
+    maintaining the exact same visual style, and content.
+
+TARGET FORMAT:
+- Output size: exactly {dimensions}
+- Aspect ratio: {aspect_ratio}
+
+REQUIREMENTS:
+- Keep the EXACT same product, styling, colors, atmosphere, and visual elements
+- Keep the "{headline}" text in the same style and position relative to the
+    new composition
+- Intelligently extend or crop the composition to fit the new {aspect_ratio}
+- If extending (adding more space), naturally continue the
+    background/atmosphere as if the camera zoomed out
+- If cropping (removing space), do so in a way that preserves the key elements
+- Maintain visual consistency - this should look like the same image, just
+    reformatted or zoomed out
+
+Create a version of this image at {dimensions} that feels like a natural
+    recomposition, not a distorted stretch or tiling."""
+
+IMAGE_GENERATION_PROMPT = """Transform this product image for a social media
+    marketing campaign while keeping the product clearly recognizable.
+
+CAMPAIGN CONTEXT:
+- Campaign Message: {campaign_message}
+- Post Headline: {headline}
+- Creative Direction: {user_prompt}
+
+OUTPUT FORMAT:
+- Generate the image at exactly {dimensions}
+- Compose the image to perfectly fit the {aspect_ratio} aspect ratio without
+    any stretching or distortion
+- Fill the entire frame naturally and beautifully
+
+REQUIREMENTS:
+- Keep the product as the main focus and clearly identifiable
+- Add campaign-appropriate atmosphere, lighting, and styling
+- Enhance visual appeal for social media (vibrant, eye-catching)
+- Make it feel professional and on-brand
+- The style should complement the headline: "{headline}"
+- Add the "{headline}" text as an overlay in a visually appealing way
+    appropriate for the campaign
+- Compose elements to naturally fill the {aspect_ratio} format
+
+Transform the image to match the campaign vibe while maintaining product
+clarity and the specified dimensions."""
+
+MOOD_BOARD_SYSTEM_PROMPT = """You are creating inspirational creative material
+for a social media campaign mood board.
+
+CRITICAL RULES:
+- DO NOT include any text, words, letters, or typography on the image
+- DO NOT add captions, labels, or written content of any kind
+- Focus purely on visual aesthetics, mood, atmosphere, and emotion
+- Create cohesive compositions that blend the reference images naturally
+- Emphasize lighting, color palette, and visual storytelling
+- Generate professional, high-quality visuals suitable for brand campaigns
+
+Your output should be a visually stunning image with NO TEXT whatsoever."""
+
+MOOD_BOARD_FULL_PROMPT = """{system_prompt}
+
+USER CREATIVE DIRECTION:
+{prompt}
+
+Generate a visually stunning mood board image that captures this
+creative direction."""
+
+VEO_VIDEO_SYSTEM_PROMPT = """Create inspirational video material for a social
+media campaign mood board.
+
+CRITICAL RULES:
+- DO NOT include any text or typography on the video
+- Create smooth, cinematic motion
+- Maintain visual coherence throughout the video
+- Focus on atmosphere, emotion, and visual storytelling
+- Generate professional, high-quality video suitable for brand campaigns
+
+Your output should be a visually stunning video with NO TEXT whatsoever."""
+
+VEO_VIDEO_FULL_PROMPT = """{system_prompt}
+
+USER CREATIVE DIRECTION:
+{prompt}
+
+Generate a cinematic video that captures this creative direction with smooth
+motion and visual appeal."""
+
+VEO_VIDEO_TECHNICAL_PROMPT = """{full_prompt}
+
+TECHNICAL SPECIFICATIONS:
+- Aspect Ratio: {aspect_ratio}
+- Duration: {duration} seconds"""
+
+PRODUCT_IMAGE_GENERATION_PROMPT = """Generate a professional product
+    photograph for: {product_name}{desc_text}{style_text}
+
+REQUIREMENTS:
+- Create a clean, professional product photo suitable for e-commerce and
+    social media
+- Place the product as the main focal point with clear visibility
+- Use appropriate lighting that highlights product features
+- Professional composition with simple, complementary background
+- High quality, photorealistic style
+- The product should look appealing and ready for marketing use
+- Output size: 1080x1080 pixels (square format)
+
+IMPORTANT: Focus on creating a professional, marketable product image that
+would work well in advertising campaigns."""
+
+
+def _extract_image_from_response(
+    response,
+    return_bytes: bool = False,
+    success_message: str = "Image extracted successfully"
+):
+    """
+    Extract PIL Image or bytes from Gemini API response.
+    """
+    if not response.parts and not hasattr(response, 'image'):
+        raise ValueError("No image data found in Gemini response")
+
+    # Extract from response.parts
+    generated_image = None
+    if response.parts:
+        for part in response.parts:
+            if hasattr(part, 'inline_data') and part.inline_data:
+                image_data = part.inline_data.data
+                if return_bytes:
+                    logger.info(f"  ✅ {success_message}")
+                    generated_image = image_data
+                else:
+                    generated_image = Image.open(io.BytesIO(image_data))
+                    logger.info(f"✅ {success_message}")
+    # Fallback to response.image
+    elif hasattr(response, 'image'):
+        if return_bytes:
+            # Convert PIL Image to bytes
+            img_byte_arr = io.BytesIO()
+            response.image.save(img_byte_arr, format='PNG')
+            logger.info(f"  ✅ {success_message}")
+            generated_image = img_byte_arr.getvalue()
+        else:
+            logger.info(f"✅ {success_message}")
+            generated_image = response.image
+
+    return generated_image
+
+
+class GeminiService:
+    """
+    Service for interacting with Google's Gemini API to generate post content.
+    """
+
+    def __init__(self, text_model_name='gemini-2.5-flash',
+                 image_model_name='gemini-2.5-flash-image'):
+        """
+        Initialize the Gemini service with API configuration.
+        """
+        settings = get_settings()
+        api_key = settings.GEMINI_API_KEY
+
+        if not api_key or api_key == "your_gemini_api_key_here":
+            raise ValueError(
+                "GEMINI_API_KEY not set in environment variables. "
+                "Please add your API key to backend/.env file."
+            )
+
+        # Create client for new google-genai SDK
+        self.client = genai.Client(api_key=api_key)
+
+        # Model names for reference
+        self.text_model_name = text_model_name
+        self.image_model_name = image_model_name
+
+    async def generate_post_copy(
+        self,
+        campaign_message: str,
+        call_to_action: Optional[str],
+        target_region: str,
+        target_audience: str,
+        product_name: str,
+        product_description: Optional[str],
+        user_prompt: str
+    ) -> Dict[str, str]:
+        """
+        Generate post copy (headline, body_text, caption) using Gemini API.
+        Returns:
+            Dict with keys: headline, body_text, caption, text_color
+        """
+        cta_text = f"\n- Call to Action: {call_to_action}" if call_to_action else ""
+        desc_text = f"\n- Product Description: {product_description}" if product_description else ""
+
+        system_prompt = COPYWRITER_SYSTEM_PROMPT.format(
+            campaign_message=campaign_message,
+            cta_section=cta_text,
+            target_region=target_region,
+            target_audience=target_audience,
+            product_name=product_name,
+            desc_section=desc_text,
+            user_prompt=user_prompt
+        )
+        try:
+            # Generate Text Content With Gemini
+            response = self.client.models.generate_content(
+                model=self.text_model_name,
+                contents=system_prompt
+            )
+            # Parse the response
+            result = self.parse_gemini_response(response.text)
+
+            return result
+
+        except Exception as _:
+            raise Exception(f"Failed to generate post copy: {str(_)}")
 
     def parse_gemini_response(self, response_text: str) -> Dict[str, str]:
         """
         Parse the Gemini API response and extract JSON content.
-
-        Args:
-            response_text: Raw response text from Gemini
-
-        Returns:
-            Dict with headline, body_text, and caption
-
-        Raises:
-            ValueError: If response cannot be parsed or is missing required fields
         """
         try:
-            # Try to extract JSON from response (handles cases where model adds extra text)
-            json_match = re.search(r'\{[^}]+\}', response_text, re.DOTALL)
+            # Try to extract JSON from response
+            # (handles cases where model adds extra text)
+            json_match = re.search(r'\{[^}]*\}', response_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group(0)
                 data = json.loads(json_str)
@@ -197,19 +323,19 @@ The "text_color" field should be a hex color code for the headline background th
             missing_fields = [field for field in required_fields if field not in data]
 
             if missing_fields:
-                raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
-
+                raise ValueError(
+                    f"Missing required fields: {', '.join(missing_fields)}")
             return {
                 "headline": data["headline"].strip(),
                 "body_text": data["body_text"].strip(),
                 "caption": data["caption"].strip(),
                 "text_color": data["text_color"].strip()
             }
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse JSON response: {str(e)}\nResponse: {response_text}")
-        except Exception as e:
-            raise ValueError(f"Failed to parse Gemini response: {str(e)}")
+        except json.JSONDecodeError as _:
+            raise ValueError(
+                f"Failed to parse JSON: {str(_)}\nResponse: {response_text}")
+        except Exception as _:
+            raise ValueError(f"Failed to parse Gemini response: {str(_)}")
 
     async def generate_product_image(
         self,
@@ -220,23 +346,10 @@ The "text_color" field should be a hex color code for the headline background th
         aspect_ratio: str = "1:1"
     ) -> Image.Image:
         """
-        Generate a stylized product image using Gemini 2.5 Flash Image (img2img).
-
-        Args:
-            product_image: PIL Image of the product
-            campaign_message: Campaign message for context
-            headline: Generated headline to inform the image style
-            user_prompt: User's custom generation prompt
-            aspect_ratio: Desired aspect ratio ("1:1", "16:9", or "9:16")
-
-        Returns:
-            PIL Image of the generated/edited product image
-
-        Raises:
-            Exception: If image generation fails
+        Generate a stylized product image using
+        Gemini 2.5 Flash Image (img2img).
         """
-        logger.info(f"         🎨 Generating image with Gemini 2.5 Flash Image...")
-        logger.info(f"         📐 Aspect ratio: {aspect_ratio}")
+        logger.info(f"Generating {aspect_ratio} image with Gemini 2.5 Flash Image...")
 
         # Build image generation prompt
         image_prompt = self._build_image_prompt(
@@ -245,7 +358,6 @@ The "text_color" field should be a hex color code for the headline background th
             user_prompt=user_prompt,
             aspect_ratio=aspect_ratio
         )
-        logger.info(f"         📝 Image prompt: {image_prompt[:100]}...")
 
         try:
             ##################################################
@@ -263,27 +375,15 @@ The "text_color" field should be a hex color code for the headline background th
             )
 
             # Extract generated image from response
-            if response.parts:
-                for part in response.parts:
-                    # Check if this part contains image data
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        # Convert inline_data to PIL Image
-                        image_data = part.inline_data.data
-                        generated_image = Image.open(io.BytesIO(image_data))
-                        logger.info(
-                            f"         ✅ Image generated successfully! Size: {generated_image.size}")
-                        return generated_image
+            return _extract_image_from_response(
+                response,
+                return_bytes=False,
+                success_message="Image generated successfully"
+            )
 
-            # If no image found in parts, try alternative access
-            if hasattr(response, 'image'):
-                logger.info(f"         ✅ Image generated successfully (via response.image)")
-                return response.image
-
-            raise ValueError("No image data found in Gemini response")
-
-        except Exception as e:
-            logger.error(f"         ❌ Image generation failed: {str(e)}")
-            raise Exception(f"Failed to generate product image: {str(e)}")
+        except Exception as _:
+            logger.error(f"❌ Image generation failed: {str(_)}")
+            raise Exception(f"Failed to generate product image: {str(_)}")
 
     async def generate_product_image_adaptation(
         self,
@@ -293,33 +393,18 @@ The "text_color" field should be a hex color code for the headline background th
     ) -> Image.Image:
         """
         Adapt an existing generated image to a new aspect ratio.
-
-        This ensures visual consistency across multiple aspect ratios by extending/adapting
-        the same base image rather than generating completely new images.
-
-        Args:
-            base_image: PIL Image that was already generated for one aspect ratio
-            headline: The headline text (should already be on the image)
-            new_aspect_ratio: Target aspect ratio ("1:1", "16:9", or "9:16")
-
-        Returns:
-            PIL Image adapted to the new aspect ratio
-
-        Raises:
-            Exception: If image adaptation fails
+        This ensures visual consistency across multiple aspect ratios
+        by extending/adapting the same base image rather than generating
+        completely new images.
         """
-        logger.info(f"         🔄 Adapting image to {new_aspect_ratio}...")
-        logger.info(f"         📐 Source image size: {base_image.size}")
+        logger.info(f"Adapting image to {new_aspect_ratio}...")
 
         # Build adaptation prompt
-        adaptation_prompt = self._build_adaptation_prompt(headline, new_aspect_ratio)
-        logger.info(f"         📝 Adaptation prompt: {adaptation_prompt[:100]}...")
-
+        adaptation_prompt = self._build_adaptation_prompt(
+            headline, new_aspect_ratio)
 
         try:
-            ##################################################
             # Generate New Aspect Ratio With Gemini img2img
-            ##################################################
             response = self.client.models.generate_content(
                 model=self.image_model_name,
                 contents=[adaptation_prompt, base_image],
@@ -332,23 +417,15 @@ The "text_color" field should be a hex color code for the headline background th
             )
 
             # Extract adapted image from response
-            if response.parts:
-                for part in response.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        image_data = part.inline_data.data
-                        adapted_image = Image.open(io.BytesIO(image_data))
-                        logger.info(f"         ✅ Image adapted successfully! Size: {adapted_image.size}")
-                        return adapted_image
+            return _extract_image_from_response(
+                response,
+                return_bytes=False,
+                success_message="Image adapted successfully"
+            )
 
-            if hasattr(response, 'image'):
-                logger.info(f"         ✅ Image adapted successfully (via response.image)")
-                return response.image
-
-            raise ValueError("No image data found in Gemini response")
-
-        except Exception as e:
-            logger.error(f"         ❌ Image adaptation failed: {str(e)}")
-            raise Exception(f"Failed to adapt image to {new_aspect_ratio}: {str(e)}")
+        except Exception as _:
+            logger.error(f"❌ Image adaptation failed: {str(_)}")
+            raise Exception(f"Failed to adapt image: {str(_)}")
 
     def _build_adaptation_prompt(
         self,
@@ -358,29 +435,13 @@ The "text_color" field should be a hex color code for the headline background th
         """
         Build a prompt for adapting an existing image to a new aspect ratio.
         """
-        dimensions_map = {
-            "1:1": "1080x1080 pixels (square)",
-            "16:9": "1920x1080 pixels (landscape)",
-            "9:16": "1080x1920 pixels (vertical/story format)"
-        }
-        dimensions = dimensions_map.get(aspect_ratio, "1080x1080 pixels")
+        dimensions = DIMENSIONS_MAP.get(aspect_ratio, "1080x1080 pixels")
 
-        prompt = f"""Adapt this image to a new aspect ratio while maintaining the exact same visual style, and content.
-
-TARGET FORMAT:
-- Output size: exactly {dimensions}
-- Aspect ratio: {aspect_ratio}
-
-REQUIREMENTS:
-- Keep the EXACT same product, styling, colors, atmosphere, and visual elements
-- Keep the "{headline}" text in the same style and position relative to the new composition
-- Intelligently extend or crop the composition to fit the new {aspect_ratio}
-- If extending (adding more space), naturally continue the background/atmosphere as if the camera zoomed out
-- If cropping (removing space), do so in a way that preserves the key elements
-- Maintain visual consistency - this should look like the same image, just reformatted or zoomed out
-
-Create a version of this image at {dimensions} that feels like a natural recomposition, not a distorted stretch or tiling."""
-
+        prompt = IMAGE_ADAPTATION_PROMPT.format(
+            dimensions=dimensions,
+            aspect_ratio=aspect_ratio,
+            headline=headline
+        )
         return prompt
 
     def _build_image_prompt(
@@ -394,37 +455,14 @@ Create a version of this image at {dimensions} that feels like a natural recompo
         Build a detailed prompt for image generation that maintains product integrity
         while adding campaign-appropriate styling.
         """
-        # Map aspect ratios to exact dimensions
-        dimensions_map = {
-            "1:1": "1080x1080 pixels (square)",
-            "16:9": "1920x1080 pixels (landscape)",
-            "9:16": "1080x1920 pixels (vertical/story format)"
-        }
-        dimensions = dimensions_map.get(aspect_ratio, "1080x1080 pixels")
-
-        prompt = f"""Transform this product image for a social media marketing campaign while keeping the product clearly recognizable.
-
-CAMPAIGN CONTEXT:
-- Campaign Message: {campaign_message}
-- Post Headline: {headline}
-- Creative Direction: {user_prompt}
-
-OUTPUT FORMAT:
-- Generate the image at exactly {dimensions}
-- Compose the image to perfectly fit the {aspect_ratio} aspect ratio without any stretching or distortion
-- Fill the entire frame naturally and beautifully
-
-REQUIREMENTS:
-- Keep the product as the main focus and clearly identifiable
-- Add campaign-appropriate atmosphere, lighting, and styling
-- Enhance visual appeal for social media (vibrant, eye-catching)
-- Make it feel professional and on-brand
-- The style should complement the headline: "{headline}"
-- Add the "{headline}" text as an overlay in a visually appealing way appropriate for the campaign
-- Compose elements to naturally fill the {aspect_ratio} format
-
-Transform the image to match the campaign vibe while maintaining product clarity and the specified dimensions."""
-
+        dimensions = DIMENSIONS_MAP.get(aspect_ratio, "1080x1080 pixels")
+        prompt = IMAGE_GENERATION_PROMPT.format(
+            campaign_message=campaign_message,
+            headline=headline,
+            user_prompt=user_prompt,
+            dimensions=dimensions,
+            aspect_ratio=aspect_ratio
+        )
         return prompt
 
     async def generate_mood_image(
@@ -435,34 +473,12 @@ Transform the image to match the campaign vibe while maintaining product clarity
     ) -> bytes:
         """
         Generate mood board image with Gemini 2.5 Flash Image.
-
         Creates inspirational creative material for mood boards without text overlays.
-
-        Args:
-            prompt: User's creative direction
-            source_images: List of source image paths (products/existing moods)
-            aspect_ratio: Desired aspect ratio
-
-        Returns:
-            Image bytes (PNG format)
-
-        Raises:
-            Exception: If image generation fails
         """
-        logger.info(f"🎨 Generating mood board image ({aspect_ratio})...")
+        logger.info(f"Generating mood board image ({aspect_ratio}).")
 
         # Build mood board specific system prompt
-        system_prompt = """You are creating inspirational creative material for a social media campaign mood board.
-
-CRITICAL RULES:
-- DO NOT include any text, words, letters, or typography on the image
-- DO NOT add captions, labels, or written content of any kind
-- Focus purely on visual aesthetics, mood, atmosphere, and emotion
-- Create cohesive compositions that blend the reference images naturally
-- Emphasize lighting, color palette, and visual storytelling
-- Generate professional, high-quality visuals suitable for brand campaigns
-
-Your output should be a visually stunning image with NO TEXT whatsoever."""
+        system_prompt = MOOD_BOARD_SYSTEM_PROMPT
 
         # Load source images as PIL Images
         image_parts = []
@@ -508,12 +524,10 @@ Your output should be a visually stunning image with NO TEXT whatsoever."""
             )
 
         # Combine system prompt with user prompt
-        full_prompt = f"""{system_prompt}
-
-USER CREATIVE DIRECTION:
-{prompt}
-
-Generate a visually stunning mood board image that captures this creative direction."""
+        full_prompt = MOOD_BOARD_FULL_PROMPT.format(
+            system_prompt=system_prompt,
+            prompt=prompt
+        )
 
         try:
             # Generate with Gemini 2.5 Flash Image
@@ -528,26 +542,16 @@ Generate a visually stunning mood board image that captures this creative direct
                 )
             )
 
-            # Extract generated image
-            if response.parts:
-                for part in response.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        image_data = part.inline_data.data
-                        logger.info(f"  ✅ Mood image generated successfully")
-                        return image_data
+            # Extract generated image as bytes
+            return _extract_image_from_response(
+                response,
+                return_bytes=True,
+                success_message="Mood image generated successfully"
+            )
 
-            if hasattr(response, 'image'):
-                # Convert PIL Image to bytes
-                img_byte_arr = io.BytesIO()
-                response.image.save(img_byte_arr, format='PNG')
-                logger.info(f"  ✅ Mood image generated successfully")
-                return img_byte_arr.getvalue()
-
-            raise ValueError("No image data found in Gemini response")
-
-        except Exception as e:
-            logger.error(f"  ❌ Mood image generation failed: {str(e)}")
-            raise Exception(f"Failed to generate mood image: {str(e)}")
+        except Exception as _:
+            logger.error(f"  ❌ Mood image generation failed: {str(_)}")
+            raise Exception(f"Failed to generate mood image: {str(_)}")
 
     async def generate_product_image_from_text(
         self,
@@ -557,51 +561,27 @@ Generate a visually stunning mood board image that captures this creative direct
     ) -> Image.Image:
         """
         Generate a product image from text description using img2img transformation.
-
         Since Gemini Flash Image doesn't support pure text-to-image, this method:
         1. Creates a neutral gray base template (1080x1080)
         2. Uses img2img to transform it into a professional product photo
-
-        Args:
-            product_name: Name of the product to generate
-            product_description: Optional description for more context
-            user_prompt: Optional style/mood guidance
-
-        Returns:
-            PIL Image of the generated product (1080x1080)
-
-        Raises:
-            Exception: If image generation fails
         """
-        logger.info(f"🎨 Generating product image from text: {product_name}")
-        logger.info(f"   📝 Description: {product_description or 'None'}")
-        logger.info(f"   🎭 Style prompt: {user_prompt or 'None'}")
-
+        logger.info(f"Generating product image from text: {product_name}")
         try:
             # Step 1: Create neutral base template
             base_size = (1080, 1080)
             base_color = '#f5f5f5'  # Light gray background
             base_template = Image.new('RGB', base_size, color=base_color)
-            logger.info(f"   ✓ Created base template: {base_size}")
+            logger.info(f"   Created base template: {base_size}")
 
             # Step 2: Build detailed prompt from product information
             desc_text = f"\n\nProduct Description: {product_description}" if product_description else ""
             style_text = f"\n\nStyle/Mood: {user_prompt}" if user_prompt else ""
 
-            generation_prompt = f"""Generate a professional product photograph for: {product_name}{desc_text}{style_text}
-
-REQUIREMENTS:
-- Create a clean, professional product photo suitable for e-commerce and social media
-- Place the product as the main focal point with clear visibility
-- Use appropriate lighting that highlights product features
-- Professional composition with simple, complementary background
-- High quality, photorealistic style
-- The product should look appealing and ready for marketing use
-- Output size: 1080x1080 pixels (square format)
-
-IMPORTANT: Focus on creating a professional, marketable product image that would work well in advertising campaigns."""
-
-            logger.info(f"   📄 Generated prompt (length: {len(generation_prompt)} chars)")
+            generation_prompt = PRODUCT_IMAGE_GENERATION_PROMPT.format(
+                product_name=product_name,
+                desc_text=desc_text,
+                style_text=style_text
+            )
 
             # Step 3: Use img2img to transform template into product photo
             response = self.client.models.generate_content(
@@ -616,24 +596,16 @@ IMPORTANT: Focus on creating a professional, marketable product image that would
             )
 
             # Step 4: Extract generated image from response
-            if response.parts:
-                for part in response.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        image_data = part.inline_data.data
-                        generated_image = Image.open(io.BytesIO(image_data))
-                        logger.info(f"   ✅ Product image generated! Size: {generated_image.size}")
-                        return generated_image
+            generated_image = _extract_image_from_response(
+                response,
+                return_bytes=False,
+                success_message="Product image generated!"
+            )
+            return generated_image
 
-            # Alternative response format
-            if hasattr(response, 'image'):
-                logger.info(f"   ✅ Product image generated (via response.image)")
-                return response.image
-
-            raise ValueError("No image data found in Gemini response")
-
-        except Exception as e:
-            logger.error(f"   ❌ Product image generation failed: {str(e)}")
-            raise Exception(f"Failed to generate product image from text: {str(e)}")
+        except Exception as _:
+            logger.error(f"   ❌ Product image generation failed: {str(_)}")
+            raise Exception(f"Failed to generate product image from text: {str(_)}")
 
     async def generate_veo_video(
         self,
@@ -644,56 +616,32 @@ IMPORTANT: Focus on creating a professional, marketable product image that would
     ) -> bytes:
         """
         Generate mood board video with Veo (async with polling).
-
         Creates inspirational video material for mood boards.
-
-        Args:
-            prompt: User's creative direction
-            source_images: List of source image paths (max 3)
-            aspect_ratio: "16:9" or "9:16"
-            duration: Video duration in seconds (4, 6, or 8)
-
-        Returns:
-            Video bytes (MP4 format)
-
-        Raises:
-            Exception: If video generation fails
         """
         logger.info(f"🎬 Generating mood board video with Veo ({aspect_ratio}, {duration}s)...")
 
         # Build mood board specific system prompt for video
-        system_prompt = """Create inspirational video material for a social media campaign mood board.
-
-CRITICAL RULES:
-- DO NOT include any text or typography on the video
-- Create smooth, cinematic motion
-- Maintain visual coherence throughout the video
-- Focus on atmosphere, emotion, and visual storytelling
-- Generate professional, high-quality video suitable for brand campaigns
-
-Your output should be a visually stunning video with NO TEXT whatsoever."""
+        system_prompt = VEO_VIDEO_SYSTEM_PROMPT
 
         # Combine system prompt with user prompt
-        full_prompt = f"""{system_prompt}
-
-USER CREATIVE DIRECTION:
-{prompt}
-
-Generate a cinematic video that captures this creative direction with smooth motion and visual appeal."""
+        full_prompt = VEO_VIDEO_FULL_PROMPT.format(
+            system_prompt=system_prompt,
+            prompt=prompt
+        )
 
         try:
             # Start video generation (async operation)
-            logger.info("  ⏳ Starting Veo generation (this may take 30-60 seconds)...")
+            logger.info("Starting Veo generation (this may take 30-60 seconds)...")
 
             # Veo 3.1 model name (standard version supports reference images)
             veo_model = "veo-3.1-generate-preview"
 
             # Build prompt with technical specifications
-            enhanced_prompt = f"""{full_prompt}
-
-TECHNICAL SPECIFICATIONS:
-- Aspect Ratio: {aspect_ratio}
-- Duration: {duration} seconds"""
+            enhanced_prompt = VEO_VIDEO_TECHNICAL_PROMPT.format(
+                full_prompt=full_prompt,
+                aspect_ratio=aspect_ratio,
+                duration=duration
+            )
 
             # Load single reference image (0 or 1 only)
             reference_image = None
@@ -730,23 +678,24 @@ TECHNICAL SPECIFICATIONS:
 
                     # Convert to RGB if it's RGBA (PNG with transparency)
                     if reference_image.mode == 'RGBA':
-                        logger.info(f"  Converting RGBA to RGB...")
+                        logger.info("  Converting RGBA to RGB...")
                         # Create white background
-                        rgb_image = Image.new('RGB', reference_image.size, (255, 255, 255))
-                        rgb_image.paste(reference_image, mask=reference_image.split()[3])  # Use alpha channel as mask
+                        rgb_image = Image.new('RGB', reference_image.size,
+                                              (255, 255, 255))
+                        # Use alpha channel as mask
+                        rgb_image.paste(reference_image,
+                                        mask=reference_image.split()[3])
                         reference_image = rgb_image
 
-                    logger.info(f"  ✓ Loaded reference image: {img_path} (size: {reference_image.size}, mode: {reference_image.mode})")
+                    logger.info(f"Loaded reference image: {img_path} (size: {reference_image.size}, mode: {reference_image.mode})")
 
-                except Exception as e:
-                    logger.error(f"  ❌ Failed to load reference image: {str(e)}")
-                    raise ValueError(f"Failed to load reference image: {str(e)}. Video generation aborted.")
-
-            # Generate video with Veo using SDK
-            import asyncio
+                except Exception as _:
+                    logger.error(f"❌ Failed to load reference image: {str(_)}")
+                    raise ValueError(
+                        f"Failed to load reference image: {str(_)}. Video generation aborted.")
 
             if reference_image:
-                logger.info(f"  🎬 Calling Veo API with 1 reference image...")
+                logger.info("Calling Veo API with 1 reference image...")
 
                 # Ensure PIL Image is fully loaded into memory
                 reference_image.load()
@@ -756,9 +705,6 @@ TECHNICAL SPECIFICATIONS:
                     image=reference_image,
                     reference_type="asset"
                 )
-
-                logger.info(f"  📋 PIL Image loaded: size={reference_image.size}, mode={reference_image.mode}")
-                logger.info(f"  📋 Wrapped in VideoGenerationReferenceImage, passing as single-item list")
 
                 operation = self.client.models.generate_videos(
                     model=veo_model,
@@ -792,20 +738,18 @@ TECHNICAL SPECIFICATIONS:
                 operation = self.client.operations.get(operation)
 
                 if attempts % 6 == 0:  # Log every 30 seconds
-                    logger.info(f"  ⏳ Still generating... ({attempts * 5}s elapsed)")
+                    logger.info(f"  Still generating... ({attempts * 5}s elapsed)")
 
                 if attempts >= max_attempts:
                     raise TimeoutError("Video generation timed out after 10 minutes")
 
-            logger.info("  ✅ Video generation complete!")
+            logger.info("✅ Video generation complete!")
 
             # Download the video
             video = operation.response.generated_videos[0]
             video_data = self.client.files.download(file=video.video)
-
-            logger.info(f"  ✅ Video downloaded successfully")
             return video_data
 
-        except Exception as e:
-            logger.error(f"  ❌ Video generation failed: {str(e)}")
-            raise Exception(f"Failed to generate mood video: {str(e)}")
+        except Exception as _:
+            logger.error(f"❌ Video generation failed: {str(_)}")
+            raise Exception(f"Failed to generate mood video: {str(_)}")

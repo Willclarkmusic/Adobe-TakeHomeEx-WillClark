@@ -4,12 +4,11 @@ Image Compositing Service for generating social media post images.
 Uses PIL/Pillow to composite product images, brand elements, and text overlays
 into professionally designed post images for multiple aspect ratios.
 """
-import os
 import re
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from typing import Optional
+from PIL import Image, ImageDraw
 import httpx
 
 # Configure logging
@@ -66,44 +65,37 @@ class ImageCompositor:
 
         # Get canvas size
         canvas_width, canvas_height = self.CANVAS_SIZES[aspect_ratio]
-        logger.info(f"      📐 Target size: {canvas_width}x{canvas_height}")
+        logger.info(f"      Target size: {canvas_width}x{canvas_height}")
 
         # Use Gemini-generated image as the base, or create white canvas
         if generated_image:
-            logger.info(f"      🖼️  Using Gemini-generated image as base ({generated_image.size})")
+            logger.info(f"      Using Gemini-generated image as base ({generated_image.size})")
 
             # Check if Gemini gave us the exact size we need
             if generated_image.size == (canvas_width, canvas_height):
-                logger.info(f"      ✅ Gemini image is already the perfect size!")
                 canvas = generated_image
             else:
                 # Use cover/crop approach to avoid stretching
-                logger.info(f"      📐 Adjusting image to canvas size without stretching...")
+                logger.info("      Adjusting image to canvas size without stretching...")
                 canvas = self._resize_cover_crop(generated_image, canvas_width, canvas_height)
-                logger.info(f"      ✅ Image adjusted to canvas size (cover/crop, no stretch)")
         else:
-            logger.info(f"      ⚠️  No generated image, creating white canvas")
             canvas = Image.new('RGB', (canvas_width, canvas_height), color='white')
 
         # Add brand logo overlay
         if brand_logo:
-            logger.info(f"      🏷️  Adding brand logo overlay from: {brand_logo}")
+            logger.info(f"      Adding brand logo overlay from: {brand_logo}")
             canvas = await self._add_brand_overlay(canvas, brand_logo, aspect_ratio)
-            logger.info(f"      ✅ Brand logo added")
         else:
-            logger.info(f"      ⚠️  No brand logo provided")
+            logger.info("      No brand logo provided")
 
         # Add border for neo-brutalist aesthetic
         canvas = self._add_border(canvas)
-        logger.info(f"      🖼️  Neo-brutalist border added")
 
         # Save image
-        logger.info(f"      💾 Saving final image...")
         output_path = self._save_image(canvas, campaign_name, post_headline, output_filename)
-        logger.info(f"      ✅ Image saved to: {output_path}")
+        logger.info(f"      Image saved to: {output_path}")
 
         return output_path
-
 
     async def _add_brand_overlay(self, canvas: Image.Image, brand_path: str, aspect_ratio: str) -> Image.Image:
         """
@@ -158,17 +150,8 @@ class ImageCompositor:
     def _resize_cover_crop(self, image: Image.Image, target_width: int, target_height: int) -> Image.Image:
         """
         Resize and crop image to cover target dimensions without stretching.
-
         Uses the 'cover' approach: scales the image to fill the target dimensions,
         maintaining aspect ratio, then crops the overflow.
-
-        Args:
-            image: Source image
-            target_width: Target width
-            target_height: Target height
-
-        Returns:
-            Image resized and cropped to exact target dimensions
         """
         source_width, source_height = image.size
         source_ratio = source_width / source_height
@@ -213,7 +196,6 @@ class ImageCompositor:
             # Load from local file
             local_path = self.files_dir / image_path.lstrip('/static/')
             return Image.open(local_path)
-
 
     def _save_image(self, canvas: Image.Image, campaign_name: str, headline: str, filename: str) -> str:
         """
