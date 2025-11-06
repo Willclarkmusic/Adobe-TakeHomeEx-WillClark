@@ -7,7 +7,6 @@ import CampaignForm, { CampaignFormJsonTab } from "./components/CampaignForm";
 import CampaignPage from "./pages/CampaignPage";
 import PostsPage from "./pages/PostsPage";
 import MoodBoardPage from "./pages/MoodBoardPage";
-import MetricsPage from "./pages/MetricsPage";
 import DeployPage from "./pages/DeployPage";
 
 /**
@@ -120,11 +119,11 @@ function App() {
 
     const confirmed = window.confirm(
       `⚠️ WARNING ⚠️\n\n` +
-      `You are about to PERMANENTLY DELETE the campaign:\n` +
-      `"${selectedCampaign.name}"\n\n` +
-      `This will also delete ALL associated products and posts!\n\n` +
-      `This action CANNOT be undone.\n\n` +
-      `Are you absolutely sure?`
+        `You are about to PERMANENTLY DELETE the campaign:\n` +
+        `"${selectedCampaign.name}"\n\n` +
+        `This will also delete ALL associated products and posts!\n\n` +
+        `This action CANNOT be undone.\n\n` +
+        `Are you absolutely sure?`
     );
 
     if (!confirmed) return;
@@ -151,7 +150,9 @@ function App() {
     const updatedCampaigns = campaigns.filter((c) => c.id !== campaignId);
     setCampaigns(updatedCampaigns);
     // Select first campaign if any remain
-    setSelectedCampaign(updatedCampaigns.length > 0 ? updatedCampaigns[0] : null);
+    setSelectedCampaign(
+      updatedCampaigns.length > 0 ? updatedCampaigns[0] : null
+    );
   };
 
   // ============ Render Methods - Modals ============
@@ -199,7 +200,6 @@ function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white transition-colors">
         <div className="max-w-7xl mx-auto px-4 py-8">
-
           {/* Header: Title, Theme Toggle, Campaign Selector, Navigation */}
           <Header
             isDark={isDark}
@@ -235,10 +235,6 @@ function App() {
             <Route
               path="/moodboard"
               element={<MoodBoardPage selectedCampaign={selectedCampaign} />}
-            />
-            <Route
-              path="/metrics"
-              element={<MetricsPage selectedCampaign={selectedCampaign} />}
             />
             <Route
               path="/deploy"

@@ -14,6 +14,7 @@ import os
 # Path to database
 DB_PATH = os.path.join(os.path.dirname(__file__), "app.db")
 
+
 def run_migration():
     """Execute the database migration."""
     print("🔄 Starting Post table migration...")
@@ -26,32 +27,30 @@ def run_migration():
         cursor.execute("PRAGMA table_info(posts)")
         columns = [row[1] for row in cursor.fetchall()]
 
-        print(f"  📋 Current columns: {columns}")
-
         # Step 2: Add mood_id column if it doesn't exist
         if "mood_id" not in columns:
-            print("  ➕ Adding mood_id column...")
+            print("  Adding mood_id column...")
             cursor.execute("ALTER TABLE posts ADD COLUMN mood_id TEXT")
             print("  ✅ mood_id column added")
         else:
-            print("  ⏭️  mood_id column already exists")
+            print("  mood_id column already exists")
 
         # Step 3: Add source_images column if it doesn't exist
         if "source_images" not in columns:
-            print("  ➕ Adding source_images column...")
+            print("  Adding source_images column...")
             cursor.execute("ALTER TABLE posts ADD COLUMN source_images TEXT")
             print("  ✅ source_images column added")
         else:
-            print("  ⏭️  source_images column already exists")
+            print("  source_images column already exists")
 
         # Step 4: SQLite doesn't support ALTER COLUMN to make nullable
         # But since we're adding the column as TEXT (already nullable),
         # existing product_id column will remain as is
         # New code will handle NULL values
-        print("  ℹ️  product_id will be handled as nullable in application code")
+        print("  product_id will be handled as nullable in application code")
 
         # Step 5: Backfill source_images from existing product.image_path
-        print("  📝 Backfilling source_images from product data...")
+        print("  Backfilling source_images from product data...")
 
         # Get all posts with their product image paths
         cursor.execute("""
@@ -62,7 +61,7 @@ def run_migration():
         """)
 
         posts_to_update = cursor.fetchall()
-        print(f"  📊 Found {len(posts_to_update)} posts to backfill")
+        print(f"  Found {len(posts_to_update)} posts to backfill")
 
         for post_id, product_image_path in posts_to_update:
             if product_image_path:
@@ -104,8 +103,8 @@ if __name__ == "__main__":
     if os.path.exists(backup_path):
         print(f"✅ Backup found: {backup_path}")
     else:
-        print(f"⚠️  WARNING: No backup found!")
-        print(f"   Creating backup now...")
+        print("WARNING: No backup found!")
+        print("   Creating backup now...")
         import shutil
         shutil.copy(DB_PATH, backup_path)
         print(f"✅ Backup created: {backup_path}")

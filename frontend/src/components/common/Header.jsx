@@ -169,18 +169,6 @@ function Header({
         >
           📱 Deploy
         </NavLink>
-        <NavLink
-          to="/metrics"
-          className={({ isActive }) =>
-            `px-6 py-3 border-2 border-black dark:border-white font-bold uppercase text-sm transition-colors ${
-              isActive
-                ? "bg-black dark:bg-white text-white dark:text-black"
-                : "bg-white dark:bg-black text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-            }`
-          }
-        >
-          📊 Metrics
-        </NavLink>
       </nav>
     );
   };
