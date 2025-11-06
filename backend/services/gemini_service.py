@@ -198,7 +198,7 @@ IMPORTANT: Focus on creating a professional, marketable product image that
 would work well in advertising campaigns."""
 
 
-def _extract_image_from_response(
+def extract_image_from_response(
     response,
     return_bytes: bool = False,
     success_message: str = "Image extracted successfully"
@@ -216,7 +216,7 @@ def _extract_image_from_response(
             if hasattr(part, 'inline_data') and part.inline_data:
                 image_data = part.inline_data.data
                 if return_bytes:
-                    logger.info(f"  ✅ {success_message}")
+                    logger.info(f"✅ {success_message}")
                     generated_image = image_data
                 else:
                     generated_image = Image.open(io.BytesIO(image_data))
@@ -375,7 +375,7 @@ class GeminiService:
             )
 
             # Extract generated image from response
-            return _extract_image_from_response(
+            return extract_image_from_response(
                 response,
                 return_bytes=False,
                 success_message="Image generated successfully"
@@ -417,7 +417,7 @@ class GeminiService:
             )
 
             # Extract adapted image from response
-            return _extract_image_from_response(
+            return extract_image_from_response(
                 response,
                 return_bytes=False,
                 success_message="Image adapted successfully"
@@ -543,7 +543,7 @@ class GeminiService:
             )
 
             # Extract generated image as bytes
-            return _extract_image_from_response(
+            return extract_image_from_response(
                 response,
                 return_bytes=True,
                 success_message="Mood image generated successfully"
@@ -596,7 +596,7 @@ class GeminiService:
             )
 
             # Step 4: Extract generated image from response
-            generated_image = _extract_image_from_response(
+            generated_image = extract_image_from_response(
                 response,
                 return_bytes=False,
                 success_message="Product image generated!"

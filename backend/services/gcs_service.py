@@ -77,7 +77,7 @@ class GCSService:
 
                 self.bucket = self.client.bucket(GCS_BUCKET_NAME)
                 logger.info(f"GCS bucket connected: {GCS_BUCKET_NAME}")
-                
+
             except Exception as e:
                 logger.error(f"❌ Failed to initialize GCS client: {str(e)}")
                 self.enabled = False
