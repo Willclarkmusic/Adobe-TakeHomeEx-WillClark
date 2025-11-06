@@ -56,9 +56,6 @@ class ImageCompositor:
             campaign_name: Campaign name for folder organization
             post_headline: Post headline for folder naming
             output_filename: Filename for the output image (e.g., "image_1-1.png")
-
-        Returns:
-            Relative path to the created image (e.g., "posts/CampaignName_Headline/image_1-1.png")
         """
         if aspect_ratio not in self.CANVAS_SIZES:
             raise ValueError(f"Invalid aspect ratio: {aspect_ratio}. Must be one of {list(self.CANVAS_SIZES.keys())}")
@@ -200,7 +197,6 @@ class ImageCompositor:
     def _save_image(self, canvas: Image.Image, campaign_name: str, headline: str, filename: str) -> str:
         """
         Save final post image (Gemini-generated with logo and border).
-
         Path format: posts/{CampaignName}_{PostHeadline}/image_{aspectRatio}.png
         """
         # Sanitize campaign name and headline for filesystem

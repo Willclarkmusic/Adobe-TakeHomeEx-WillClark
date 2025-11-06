@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     AYRSHARE_BASE_URL: str = "https://app.ayrshare.com/api"
 
     model_config = SettingsConfigDict(
-        env_file="../.env",  # .env is in backend/, we're in backend/services/
+        env_file=".env",  # .env is in backend/, CWD is backend/ when running uvicorn
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore"  # Ignore extra fields in .env

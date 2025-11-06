@@ -29,19 +29,8 @@ async def generate_mood_images(
 ) -> List[MoodMedia]:
     """
     Generate mood board images for multiple aspect ratios.
-
     Creates one separate image per ratio using Gemini AI.
     Each image is saved with a unique date-stamped filename.
-
-    Args:
-        campaign_id: Campaign ID
-        prompt: User's creative direction
-        source_images: List of source image paths (products/mood images)
-        ratios: List of aspect ratios (max 3)
-        db: Database session
-
-    Returns:
-        List of created MoodMedia objects
     """
     logger.info(f"🎨 Generating {len(ratios)} mood images for campaign {campaign_id}")
 
@@ -113,19 +102,7 @@ async def generate_mood_video(
 ) -> MoodMedia:
     """
     Generate mood board video with Veo.
-
     Creates a single video using Gemini Veo with async polling.
-
-    Args:
-        campaign_id: Campaign ID
-        prompt: User's creative direction
-        source_images: List of source image paths (max 3)
-        ratio: Aspect ratio ("16:9" or "9:16")
-        duration: Video duration in seconds (4, 6, or 8)
-        db: Database session
-
-    Returns:
-        Created MoodMedia object
     """
     logger.info(f"🎬 Generating mood video for campaign {campaign_id} ({ratio}, {duration}s)")
 
@@ -145,7 +122,6 @@ async def generate_mood_video(
         logger.info(f"  📸 Verifying {len(source_images[:3])} reference images...")
         for img_path in source_images[:3]:  # Max 3 for Veo
             # Check if file exists
-            from pathlib import Path
             file_path_obj = Path(f"../files/{img_path}")
             if not file_path_obj.exists():
                 file_path_obj = Path(f"files/{img_path}")
@@ -194,19 +170,13 @@ async def generate_mood_video(
     db.commit()
     db.refresh(mood_media)
 
-    logger.info(f"✅ Successfully generated mood video")
+    logger.info("✅ Successfully generated mood video")
     return mood_media
 
 
 def calculate_images_total_size(image_paths: List[str]) -> float:
     """
     Calculate total file size of images in MB.
-
-    Args:
-        image_paths: List of relative image paths (e.g., "media/image.jpg" or "/static/media/image.jpg")
-
-    Returns:
-        Total size in megabytes
     """
     total_bytes = 0
 
@@ -238,16 +208,8 @@ def calculate_images_total_size(image_paths: List[str]) -> float:
 def sanitize_campaign_name(name: str, max_len: int = 20) -> str:
     """
     Sanitize campaign name for use in filenames.
-
     Removes special characters, replaces spaces with underscores,
     and truncates to max length.
-
-    Args:
-        name: Original campaign name
-        max_len: Maximum length (default 20)
-
-    Returns:
-        Sanitized filename-safe string
     """
     # Remove special characters
     safe = re.sub(r'[^\w\s-]', '', name)
@@ -262,10 +224,5 @@ def sanitize_campaign_name(name: str, max_len: int = 20) -> str:
 def get_date_stamp() -> str:
     """
     Generate a unique date-based timestamp for filenames.
-
-    Format: YYYYMMDDHHmmss (e.g., "20250111_143022")
-
-    Returns:
-        Date stamp string
     """
     return datetime.utcnow().strftime("%Y%m%d_%H%M%S")
